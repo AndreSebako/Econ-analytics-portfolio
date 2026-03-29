@@ -1,6 +1,5 @@
 import Link from "next/link";
-import SimpleChart from "../components/SimpleChart";
-import InflationChart from "../components/InflationChart";
+import HomeMacroPreview from "../components/HomeMacroPreview";
 
 export default function Home() {
   return (
@@ -73,14 +72,28 @@ export default function Home() {
           </p>
         </Link>
       </section>
+<section className="rounded-2xl bg-gray-900 p-6">
+  <p className="mb-2 text-sm uppercase tracking-[0.2em] text-gray-400">
+    Featured Dashboard
+  </p>
 
-      <section className="rounded-2xl bg-gray-900 p-6">
-        <h3 className="mb-3 text-2xl font-semibold">U.S. Unemployment Dashboard</h3>
-        <SimpleChart />
-      </section>
-      <section className="mt-10 rounded-2xl bg-gray-900 p-6">
-  <h3 className="mb-3 text-2xl font-semibold">U.S. Inflation Dashboard</h3>
-  <InflationChart />
+  <h3 className="mb-3 text-2xl font-semibold">U.S. Macroeconomic Dashboard</h3>
+
+  <p className="max-w-2xl text-gray-400">
+    Explore live unemployment, inflation, and Fed funds rate data in a dedicated
+    economics dashboard built from FRED API data.
+  </p>
+
+  <HomeMacroPreview />
+
+  <div className="mt-6">
+    <Link
+      href="/economic-analysis"
+      className="inline-block rounded-xl bg-white px-5 py-3 font-medium text-gray-950 transition hover:opacity-90"
+    >
+      View Economic Dashboard
+    </Link>
+  </div>
 </section>
     </main>
   );
