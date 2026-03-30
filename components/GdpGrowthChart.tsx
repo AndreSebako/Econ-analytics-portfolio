@@ -4,19 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import {
   LineChart,
   Line,
+  ResponsiveContainer,
   XAxis,
   YAxis,
   Tooltip,
-  ResponsiveContainer,
 } from "recharts";
 
-type GdpPoint = {
+type Point = {
   date: string;
   value: number;
 };
 
 function classifyGrowth(latest: number | null) {
-  if (latest === null) return "No data";
+  if (latest === null) return "No Data";
   if (latest < 0) return "Contraction";
   if (latest < 1) return "Weak Growth";
   if (latest < 3) return "Moderate Growth";
@@ -24,22 +24,15 @@ function classifyGrowth(latest: number | null) {
 }
 
 export default function GdpGrowthChart() {
-  const [data, setData] = useState<GdpPoint[]>([]);
+  const [data, setData] = useState<Point[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    async function loadData() {
+    async function load() {
       try {
-        setLoading(true);
-        setError("");
-
         const res = await fetch("/api/gdp-growth");
-
-        if (!res.ok) {
-          throw new Error("Failed to load GDP growth data");
-        }
-
+        if (!res.ok) throw new Error("Failed to load GDP growth data");
         const json = await res.json();
         setData(json);
       } catch {
@@ -49,31 +42,24 @@ export default function GdpGrowthChart() {
       }
     }
 
-    loadData();
+    load();
   }, []);
 
-  const latest = useMemo(() => {
-    return data.length ? data[data.length - 1].value : null;
-  }, [data]);
+  const latest = data.length ? data[data.length - 1].value : null;
+  const prev = data.length > 1 ? data[data.length - 2].value : null;
+  const change =
+    latest !== null && prev !== null ? latest - prev : null;
 
-  const previous = useMemo(() => {
-    return data.length > 1 ? data[data.length - 2].value : null;
-  }, [data]);
+  const growthSignal = classifyGrowth(latest);
 
-  const change = useMemo(() => {
-    if (latest !== null && previous !== null) {
-      return latest - previous;
-    }
-    return null;
-  }, [latest, previous]);
-
-  const low = useMemo(() => {
-    return data.length ? Math.min(...data.map((d) => d.value)) : null;
-  }, [data]);
-
-  const high = useMemo(() => {
-    return data.length ? Math.max(...data.map((d) => d.value)) : null;
-  }, [data]);
+  const growthSignalColor =
+    growthSignal === "Contraction"
+      ? "#f87171"
+      : growthSignal === "Weak Growth"
+      ? "#fde047"
+      : growthSignal === "Moderate Growth"
+      ? "#93c5fd"
+      : "#4ade80";
 
   const chartData = useMemo(() => {
     return data.map((d) => {
@@ -82,115 +68,68 @@ export default function GdpGrowthChart() {
       const year = String(date.getFullYear()).slice(-2);
 
       return {
-        ...d,
-        label: `Q${quarter} ${year}`,
+        name: `Q${quarter} ${year}`,
+        value: d.value,
       };
     });
   }, [data]);
 
-  const growthSignal = classifyGrowth(latest);
-  const growthSignalColor =
-  growthSignal === "Contraction"
-    ? "#f87171"
-    : growthSignal === "Weak Growth"
-    ? "#fde047"
-    : growthSignal === "Moderate Growth"
-    ? "#93c5fd"
-    : "#4ade80";
-
-  
-  if (loading) {
-    return (
-      <div className="rounded-xl border border-gray-800 bg-gray-950 p-6">
-        <p className="text-gray-400">Loading GDP growth data...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-xl border border-gray-800 bg-gray-950 p-6">
-        <p className="text-red-400">{error}</p>
-      </div>
-    );
-  }
+  if (loading) return <p className="text-gray-400">Loading...</p>;
+  if (error) return <p className="text-red-400">{error}</p>;
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-          <p className="text-sm text-gray-400">Latest GDP Growth</p>
-          <p className="mt-2 text-3xl font-bold">
-            {latest !== null ? `${latest.toFixed(1)}%` : "--"}
+    <div className="space-y-4">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <p className="text-xs text-gray-400">Latest</p>
+          <p className="text-2xl font-semibold">
+            {latest?.toFixed(1)}%
           </p>
-          <p className="mt-1 text-sm text-gray-500">
+        </div>
+
+        <div className="text-right">
+          <p className="text-xs text-gray-400">Δ QoQ</p>
+          <p
+            className={`text-sm ${
+              change !== null && change < 0
+                ? "text-red-400"
+                : change !== null && change > 0
+                ? "text-green-400"
+                : "text-gray-400"
+            }`}
+          >
             {change !== null
-              ? `${change > 0 ? "+" : ""}${change.toFixed(1)} pp vs prior quarter`
-              : "Most recent quarterly growth"}
+              ? `${change > 0 ? "+" : ""}${change.toFixed(1)} pp`
+              : ""}
           </p>
         </div>
 
-        <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-          <p className="text-sm text-gray-400">16-Quarter High</p>
-          <p className="mt-2 text-3xl font-bold">
-            {high !== null ? `${high.toFixed(1)}%` : "--"}
+        <div className="text-right">
+          <p className="text-xs text-gray-400">Signal</p>
+          <p
+            className="text-sm font-medium"
+            style={{ color: growthSignalColor }}
+          >
+            {growthSignal}
           </p>
-          <p className="mt-1 text-sm text-gray-500">Highest recent growth reading</p>
-        </div>
-
-        <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-          <p className="text-sm text-gray-400">16-Quarter Low</p>
-          <p className="mt-2 text-3xl font-bold">
-            {low !== null ? `${low.toFixed(1)}%` : "--"}
-          </p>
-          <p className="mt-1 text-sm text-gray-500">Lowest recent growth reading</p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-        <div className="mb-4">
-          <p className="text-sm text-gray-400">Real GDP Growth</p>
-          <p className="text-lg font-semibold">Quarterly annualized growth rate</p>
-        </div>
-
-        <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <XAxis dataKey="label" minTickGap={20} />
-              <YAxis />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="#a78bfa"
-                strokeWidth={3}
-                dot={false}
-                activeDot={{ r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-    <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-  <p className="text-sm text-gray-400">Growth Signal</p>
-
-  <p
-    className="mt-2 text-xl font-semibold"
-    style={{ color: growthSignalColor }}
-  >
-    {growthSignal}
-  </p>
-</div>
-
-      <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
-        <p className="text-sm text-gray-400">Interpretation</p>
-        <p className="mt-2 leading-7 text-gray-300">
-          Real GDP growth captures the pace of aggregate output expansion. In
-          combination with unemployment, inflation, and the policy rate, it helps
-          assess whether the economy is accelerating, slowing, or transitioning
-          toward a more stable path.
-        </p>
+      <div className="h-[260px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData}>
+            <XAxis dataKey="name" stroke="#6b7280" fontSize={10} />
+            <YAxis stroke="#6b7280" fontSize={10} />
+            <Tooltip />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke="#a78bfa"
+              strokeWidth={2}
+              dot={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
