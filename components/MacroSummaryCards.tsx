@@ -45,22 +45,22 @@ function generateMacroInsight(
   }
 
   if (gdp < 1 && gdpTrend < 0) {
-    return "Growth is slowing sharply, suggesting weakening economic momentum.";
+    return "Growth is slowing sharply, suggesting weakening economic momentum. Inflation has eased from earlier highs, but softer output momentum should be monitored closely.";
   }
 
   if (inflation > 3 && gdp < 1) {
-    return "Elevated inflation combined with weak growth suggests stagflation risk.";
+    return "Inflation remains elevated while growth is weak, which raises stagflation risk and complicates the policy outlook.";
   }
 
   if (inflation < 3 && gdp > 2) {
-    return "Stable inflation and solid growth indicate a healthy expansion.";
+    return "Inflation is relatively contained and growth remains solid, indicating a healthier expansion environment.";
   }
 
   if (gdp > 0 && gdpTrend < 0) {
-    return "Growth remains positive but is decelerating, consistent with a soft landing.";
+    return "Growth remains positive but is decelerating, consistent with a soft-landing environment rather than a broad contraction.";
   }
 
-  return "The economy appears broadly stable.";
+  return "The economy appears broadly stable, with no single indicator yet signaling severe macro deterioration.";
 }
 
 export default function MacroSummaryCards() {
@@ -101,22 +101,22 @@ export default function MacroSummaryCards() {
     load();
   }, []);
 
-  const latestU = u.length ? u[u.length - 1].value : null;
-  const prevU = u.length > 1 ? u[u.length - 2].value : null;
+  const latestU = u.length ? Number(u[u.length - 1].value) : null;
+  const prevU = u.length > 1 ? Number(u[u.length - 2].value) : null;
   const uTrend =
     latestU !== null && prevU !== null ? latestU - prevU : null;
 
-  const latestI = i.length ? i[i.length - 1].value : null;
-  const prevI = i.length > 1 ? i[i.length - 2].value : null;
+  const latestI = i.length ? Number(i[i.length - 1].value) : null;
+  const prevI = i.length > 1 ? Number(i[i.length - 2].value) : null;
   const iTrend =
     latestI !== null && prevI !== null ? latestI - prevI : null;
 
-  const latestG = g.length ? g[g.length - 1].value : null;
-  const prevG = g.length > 1 ? g[g.length - 2].value : null;
+  const latestG = g.length ? Number(g[g.length - 1].value) : null;
+  const prevG = g.length > 1 ? Number(g[g.length - 2].value) : null;
   const gTrend =
     latestG !== null && prevG !== null ? latestG - prevG : null;
 
-  const latestF = f.length ? f[f.length - 1].value : null;
+  const latestF = f.length ? Number(f[f.length - 1].value) : null;
 
   const macroState = classifyMacroState(latestI, latestU, latestG);
 
@@ -147,14 +147,14 @@ export default function MacroSummaryCards() {
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-gray-800 bg-gray-950 p-5 text-gray-400">
+      <div className="rounded-xl border border-gray-800 bg-gray-950 p-6 text-gray-400">
         Loading macro summary...
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-950 p-5">
+    <div className="rounded-xl border border-gray-800 bg-gray-950 p-6">
       <p className="text-xs uppercase tracking-[0.18em] text-gray-400">
         Macro Regime
       </p>
@@ -166,7 +166,7 @@ export default function MacroSummaryCards() {
         {macroState}
       </p>
 
-      <div className="mt-5 grid grid-cols-2 gap-4 border-t border-gray-800 pt-4 text-sm">
+      <div className="mt-5 grid grid-cols-2 gap-5 border-t border-gray-800 pt-4 text-sm">
         <div>
           <p className="text-gray-400">Inflation</p>
           <p className="mt-1 text-lg font-semibold">{fmt(latestI, 1)}</p>
@@ -191,11 +191,11 @@ export default function MacroSummaryCards() {
         </div>
       </div>
 
-      <div className="mt-5 border-t border-gray-800 pt-4">
+      <div className="mt-6 border-t border-gray-800 pt-4">
         <p className="text-xs uppercase tracking-[0.18em] text-gray-400">
           Macro Insight
         </p>
-        <p className="mt-3 text-sm leading-6 text-gray-300">{insight}</p>
+        <p className="mt-3 text-sm leading-7 text-gray-300">{insight}</p>
       </div>
     </div>
   );
