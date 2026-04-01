@@ -261,10 +261,10 @@ export default function EconomicAnalysisPage() {
                       fontSize: "12px",
                       marginBottom: "4px",
                     }}
-                    formatter={(value: number, name: string) => [
-                      Number(value).toFixed(1),
-                      name,
-                    ]}
+                    formatter={(value, name) => [
+  Number(value ?? 0).toFixed(1),
+  String(name),
+]}
                   />
 
                   <Legend
