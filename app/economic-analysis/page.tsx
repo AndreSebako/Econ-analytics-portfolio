@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export const revalidate = 60 * 60;
+export const revalidate = 3600;
 
 type Observation = {
   date: string;
