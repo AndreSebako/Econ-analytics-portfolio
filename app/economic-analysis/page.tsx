@@ -866,322 +866,293 @@ export default async function EconomicAnalysisPage() {
     year: "numeric",
   });
 
-  return (
-    <main id="top" className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-[1820px] px-4 py-8 sm:px-6 lg:px-8 xl:px-10">
-        <div className="mb-8 grid gap-6 border-b border-slate-800 pb-10 xl:grid-cols-[1.25fr_1fr]">
-          <div>
-            <p className="text-xs uppercase tracking-[0.34em] text-slate-400">
-              U.S. Macro Monitor
-            </p>
+ return (
+  <main id="top" className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="mx-auto max-w-[1820px] px-4 py-8 sm:px-6 lg:px-8 xl:px-10">
+      <div className="mb-8 grid gap-6 border-b border-slate-800 pb-10 xl:grid-cols-[1.25fr_1fr]">
+        <div>
+          <p className="text-xs uppercase tracking-[0.34em] text-slate-400">
+            U.S. Macro Monitor
+          </p>
 
-            <h1 className="mt-6 text-6xl font-semibold tracking-tight text-slate-50 md:text-7xl">
-              U.S. Macroeconomic Dashboard
-            </h1>
+          <h1 className="mt-6 text-6xl font-semibold tracking-tight text-slate-50 md:text-7xl">
+            U.S. Macroeconomic Dashboard
+          </h1>
 
-            <p className="mt-8 max-w-4xl text-2xl leading-[1.9] text-slate-200">
-              Live tracking of inflation, labor market conditions, monetary policy,
-              and real activity using FRED time-series data.
-            </p>
+          <p className="mt-8 max-w-4xl text-2xl leading-[1.9] text-slate-200">
+            Live tracking of inflation, labor market conditions, monetary policy,
+            and real activity using FRED time-series data.
+          </p>
 
-            <div className="mt-10 flex flex-wrap gap-4">
-              <a
-                href="#labor"
-                className="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-lg font-medium text-slate-100 transition hover:border-slate-600"
-              >
-                Labor
-              </a>
-              <a
-                href="#inflation"
-                className="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-lg font-medium text-slate-100 transition hover:border-slate-600"
-              >
-                Inflation
-              </a>
-              <a
-                href="#policy"
-                className="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-lg font-medium text-slate-100 transition hover:border-slate-600"
-              >
-                Policy
-              </a>
-              <a
-                href="#output"
-                className="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-lg font-medium text-slate-100 transition hover:border-slate-600"
-              >
-                Output
-              </a>
-            </div>
-          </div>
-
-          <div className="grid gap-4 self-end md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                Current Regime
-              </p>
-              <p className="mt-4 text-3xl font-semibold" style={{ color: regime.color }}>
-                {regime.label}
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                Source
-              </p>
-              <p className="mt-4 text-3xl font-semibold text-slate-50">FRED</p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                Last Updated
-              </p>
-              <p className="mt-4 text-3xl font-semibold text-slate-50">{updatedAt}</p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                Coverage
-              </p>
-              <p className="mt-4 text-3xl font-semibold text-slate-50">
-                Macro Monitor
-              </p>
-            </div>
+          <div className="mt-10 flex flex-wrap gap-4">
+            <a
+              href="#labor"
+              className="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-lg font-medium text-slate-100 transition hover:border-slate-600"
+            >
+              Labor
+            </a>
+            <a
+              href="#inflation"
+              className="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-lg font-medium text-slate-100 transition hover:border-slate-600"
+            >
+              Inflation
+            </a>
+            <a
+              href="#policy"
+              className="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-lg font-medium text-slate-100 transition hover:border-slate-600"
+            >
+              Policy
+            </a>
+            <a
+              href="#output"
+              className="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-lg font-medium text-slate-100 transition hover:border-slate-600"
+            >
+              Output
+            </a>
           </div>
         </div>
 
-        {fetchError ? (
-          <div className="mb-8 rounded-xl border border-red-900/60 bg-red-950/40 p-5 text-red-300">
-            Data temporarily unavailable. {fetchError}
-          </div>
-        ) : null}
-
-        <div className="grid items-start gap-6 xl:grid-cols-[1fr_1.3fr]">
-          <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
+        <div className="grid gap-4 self-end md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
             <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-              Regime Summary
+              Current Regime
             </p>
+            <p className="mt-4 text-3xl font-semibold" style={{ color: regime.color }}>
+              {regime.label}
+            </p>
+          </div>
 
-            <div className="mt-8">
-              <p className="text-4xl text-slate-300">Current Regime</p>
-             <h2
-  className="mt-3 text-6xl font-semibold tracking-tight leading-[0.95]"
-  style={{ color: regime.color }}
->
-                {regime.label}
-              </h2>
-              <p className="mt-6 max-w-3xl text-2xl leading-[1.8] text-slate-200">
-                {regime.summary}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+              Source
+            </p>
+            <p className="mt-4 text-3xl font-semibold text-slate-50">FRED</p>
+          </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+              Last Updated
+            </p>
+            <p className="mt-4 text-3xl font-semibold text-slate-50">{updatedAt}</p>
+          </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+              Coverage
+            </p>
+            <p className="mt-4 text-3xl font-semibold text-slate-50">
+              Macro Monitor
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {fetchError ? (
+        <div className="mb-8 rounded-xl border border-red-900/60 bg-red-950/40 p-5 text-red-300">
+          Data temporarily unavailable. {fetchError}
+        </div>
+      ) : null}
+
+      <div className="grid items-start gap-6 xl:grid-cols-[1fr_1.3fr]">
+        <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
+          <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+            Regime Summary
+          </p>
+
+          <div className="mt-8">
+            <p className="text-4xl text-slate-300">Current Regime</p>
+            <h2
+              className="mt-3 text-6xl font-semibold tracking-tight leading-[0.95]"
+              style={{ color: regime.color }}
+            >
+              {regime.label}
+            </h2>
+            <p className="mt-6 max-w-3xl text-2xl leading-[1.8] text-slate-200">
+              {regime.summary}
+            </p>
+          </div>
+
+          <div className="mt-10 h-px w-full bg-slate-800" />
+
+          <div className="mt-10 grid gap-10 sm:grid-cols-2">
+            <div>
+              <p className="text-2xl text-slate-300">Inflation</p>
+              <p className="mt-3 text-6xl font-semibold text-slate-50">
+                {formatValue(inflationLatest)}
+              </p>
+              <p
+                className="mt-4 text-4xl"
+                style={{
+                  color:
+                    inflationDelta === null
+                      ? COLORS.muted
+                      : inflationDelta > 0
+                      ? COLORS.red
+                      : inflationDelta < 0
+                      ? COLORS.green
+                      : COLORS.text,
+                }}
+              >
+                {formatDelta(inflationDelta)}
               </p>
             </div>
 
-            <div className="mt-10 h-px w-full bg-slate-800" />
-
-            <div className="mt-10 grid gap-10 sm:grid-cols-2">
-              <div>
-                <p className="text-2xl text-slate-300">Inflation</p>
-                <p className="mt-3 text-6xl font-semibold text-slate-50">
-                  {formatValue(inflationLatest)}
-                </p>
-                <p
-                  className="mt-4 text-4xl"
-                  style={{
-                    color:
-                      inflationDelta === null
-                        ? COLORS.muted
-                        : inflationDelta > 0
-                        ? COLORS.red
-                        : inflationDelta < 0
-                        ? COLORS.green
-                        : COLORS.text,
-                  }}
-                >
-                  {formatDelta(inflationDelta)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-2xl text-slate-300">Unemployment</p>
-                <p className="mt-3 text-6xl font-semibold text-slate-50">
-                  {formatValue(unemploymentLatest)}
-                </p>
-                <p
-                  className="mt-4 text-4xl"
-                  style={{
-                    color:
-                      unemploymentDelta === null
-                        ? COLORS.muted
-                        : unemploymentDelta > 0
-                        ? COLORS.red
-                        : unemploymentDelta < 0
-                        ? COLORS.green
-                        : COLORS.text,
-                  }}
-                >
-                  {formatDelta(unemploymentDelta)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-2xl text-slate-300">GDP Growth</p>
-                <p className="mt-3 text-6xl font-semibold text-slate-50">
-                  {formatValue(gdpGrowthLatest)}
-                </p>
-                <p
-                  className="mt-4 text-4xl"
-                  style={{
-                    color:
-                      gdpGrowthDelta === null
-                        ? COLORS.muted
-                        : gdpGrowthDelta > 0
-                        ? COLORS.green
-                        : gdpGrowthDelta < 0
-                        ? COLORS.red
-                        : COLORS.text,
-                  }}
-                >
-                  {formatDelta(gdpGrowthDelta)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-2xl text-slate-300">Fed Funds</p>
-                <p className="mt-3 text-6xl font-semibold text-slate-50">
-                  {formatValue(fedFundsLatest, "%", 1)}
-                </p>
-                <p
-                  className="mt-4 text-4xl"
-                  style={{
-                    color:
-                      fedFundsDelta === null
-                        ? COLORS.muted
-                        : fedFundsDelta > 0
-                        ? COLORS.red
-                        : fedFundsDelta < 0
-                        ? COLORS.green
-                        : COLORS.text,
-                  }}
-                >
-                  {formatDelta(fedFundsDelta)}
-                </p>
-              </div>
+            <div>
+              <p className="text-2xl text-slate-300">Unemployment</p>
+              <p className="mt-3 text-6xl font-semibold text-slate-50">
+                {formatValue(unemploymentLatest)}
+              </p>
+              <p
+                className="mt-4 text-4xl"
+                style={{
+                  color:
+                    unemploymentDelta === null
+                      ? COLORS.muted
+                      : unemploymentDelta > 0
+                      ? COLORS.red
+                      : unemploymentDelta < 0
+                      ? COLORS.green
+                      : COLORS.text,
+                }}
+              >
+                {formatDelta(unemploymentDelta)}
+              </p>
             </div>
-          </section>
 
-          <ManufacturingActivityPanel
-            output={manufacturingOutputData}
-            orders={manufacturingOrdersData}
-          />
+            <div>
+              <p className="text-2xl text-slate-300">GDP Growth</p>
+              <p className="mt-3 text-6xl font-semibold text-slate-50">
+                {formatValue(gdpGrowthLatest)}
+              </p>
+              <p
+                className="mt-4 text-4xl"
+                style={{
+                  color:
+                    gdpGrowthDelta === null
+                      ? COLORS.muted
+                      : gdpGrowthDelta > 0
+                      ? COLORS.green
+                      : gdpGrowthDelta < 0
+                      ? COLORS.red
+                      : COLORS.text,
+                }}
+              >
+                {formatDelta(gdpGrowthDelta)}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-2xl text-slate-300">Fed Funds</p>
+              <p className="mt-3 text-6xl font-semibold text-slate-50">
+                {formatValue(fedFundsLatest, "%", 1)}
+              </p>
+              <p
+                className="mt-4 text-4xl"
+                style={{
+                  color:
+                    fedFundsDelta === null
+                      ? COLORS.muted
+                      : fedFundsDelta > 0
+                      ? COLORS.red
+                      : fedFundsDelta < 0
+                      ? COLORS.green
+                      : COLORS.text,
+                }}
+              >
+                {formatDelta(fedFundsDelta)}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <ManufacturingActivityPanel
+          output={manufacturingOutputData}
+          orders={manufacturingOrdersData}
+        />
+      </div>
+
+      <div className="mt-6 grid items-start gap-6 xl:grid-cols-2">
+        <div id="labor">
+          <MetricPanel {...unemploymentCard} />
         </div>
 
-        {/* ===== INDICATOR PANELS (MOVE UP) ===== */}
-<div className="mt-6 grid items-start gap-6 xl:grid-cols-2">
-  <div id="labor">
-    <MetricPanel {...unemploymentCard} />
-  </div>
+        <div id="inflation">
+          <MetricPanel {...inflationCard} />
+        </div>
 
-  <div id="inflation">
-    <MetricPanel {...inflationCard} />
-  </div>
+        <div id="policy">
+          <MetricPanel {...fedFundsCard} />
+        </div>
 
-  <div id="policy">
-    <MetricPanel {...fedFundsCard} />
-  </div>
+        <div id="output">
+          <MetricPanel {...gdpCard} isQuarterly />
+        </div>
+      </div>
 
-  <div id="output">
-    <MetricPanel {...gdpCard} isQuarterly />
-  </div>
-</div>
+      <div className="mt-6 grid items-start gap-6 xl:grid-cols-[1.35fr_0.9fr]">
+        <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
+          <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+            Desk Interpretation
+          </p>
 
-{/* ===== TEXT / INTERPRETATION (MOVE DOWN) ===== */}
-<div className="mt-6 grid items-start gap-6 xl:grid-cols-[1.35fr_0.9fr]">
+          <h2 className="mt-4 text-5xl font-semibold tracking-tight text-slate-50">
+            Macro Assessment
+          </h2>
 
-  {/* LEFT — MACRO ASSESSMENT */}
-  <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
-    <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-      Desk Interpretation
-    </p>
+          <div className="mt-8 space-y-8 text-lg leading-9 text-slate-100">
+            {assessment.map((paragraph, idx) => (
+              <p key={idx}>{paragraph}</p>
+            ))}
+          </div>
+        </section>
 
-    <h2 className="mt-4 text-5xl font-semibold tracking-tight text-slate-50">
-      Macro Assessment
-    </h2>
+        <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
+          <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+            Market Implications
+          </p>
 
-    <div className="mt-8 space-y-8 text-lg leading-9 text-slate-100">
-      <p>
-        Inflation currently prints at {inflationCard.latest}, while unemployment
-        stands at {unemploymentCard.latest}. The latest mix suggests that
-        disinflation is stalling, and labor market deterioration remains limited
-        rather than disorderly.
-      </p>
+          <h2 className="mt-4 text-5xl font-semibold tracking-tight text-slate-50">
+            House View
+          </h2>
 
-      <p>
-        The federal funds rate is currently {fedFundsCard.latest}, leaving policy
-        restrictive in level terms. Real GDP growth is {gdpCard.latest}, and the
-        latest change versus the prior quarter is {gdpCard.delta}. Activity
-        remains positive, but the latest output print points to weaker underlying
-        momentum.
-      </p>
+          <div className="mt-8 space-y-6">
+            {houseView.map((item) => (
+              <div
+                key={item.label}
+                className="rounded-xl border border-slate-800 bg-slate-950/75 p-7"
+              >
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+                  {item.label}
+                </p>
+                <p className="mt-5 text-lg leading-9 text-slate-100">
+                  {item.text}
+                </p>
+              </div>
+            ))}
 
-      <p>
-        On balance, current conditions are most consistent with a late-cycle
-        slowdown regime. The central question from here is whether easing
-        inflation can continue without a broader deterioration in employment and
-        growth conditions.
-      </p>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/75 p-7">
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+                Navigation
+              </p>
+              <div className="mt-6 flex flex-wrap gap-4">
+                <Link
+                  href="/"
+                  className="rounded-xl border border-slate-700 bg-slate-950/70 px-6 py-4 text-lg font-medium text-slate-200 transition hover:border-slate-500 hover:text-white"
+                >
+                  Return Home
+                </Link>
+                <a
+                  href="#top"
+                  className="rounded-xl border border-slate-700 bg-slate-950/70 px-6 py-4 text-lg font-medium text-slate-200 transition hover:border-slate-500 hover:text-white"
+                >
+                  Back to Top
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
-  </section>
-
-  {/* RIGHT — HOUSE VIEW */}
-  <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8 space-y-6">
-
-    <h2 className="text-5xl font-semibold tracking-tight text-slate-50">
-      House View
-    </h2>
-
-    <div className="space-y-6">
-
-      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-6">
-        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-          Rates
-        </p>
-        <p className="mt-2 text-lg text-slate-100">
-          Sticky inflation or firmer growth argues for a higher-for-longer rates profile.
-        </p>
-      </div>
-
-      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-6">
-        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-          Equities
-        </p>
-        <p className="mt-2 text-lg text-slate-100">
-          Equity leadership is likely to narrow as growth momentum softens and macro visibility becomes less uniform.
-        </p>
-      </div>
-
-      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-6">
-        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-          Credit
-        </p>
-        <p className="mt-2 text-lg text-slate-100">
-          Contained labor market stress remains broadly constructive for credit, though slowing growth argues for tighter issuer selection.
-        </p>
-      </div>
-
-      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-6">
-        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-          Risk Monitor
-        </p>
-        <p className="mt-2 text-lg text-slate-100">
-          The main macro risk is that slowing output broadens faster than inflation normalizes, shifting the regime from soft landing toward a more material growth downshift.
-        </p>
-      </div>
-
-      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-6 flex gap-4">
-        <button className="rounded-lg border border-slate-700 px-4 py-2 hover:bg-slate-800">
-          Return Home
-        </button>
-        <button className="rounded-lg border border-slate-700 px-4 py-2 hover:bg-slate-800">
-          Back to Top
-        </button>
-      </div>
-
-    </div>
-  </section>
-</div>
+  </main>
+);
+}
