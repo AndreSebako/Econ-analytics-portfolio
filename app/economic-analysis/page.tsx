@@ -877,7 +877,7 @@ export default async function EconomicAnalysisPage() {
   let ismServicesData: Observation[] = [];
   let fetchError: string | null = null;
 
-   const results = await Promise.allSettled([
+  const results = await Promise.allSettled([
     fetchFredSeries(SERIES.unemployment, "2023-01-01"),
     fetchFredSeries(SERIES.inflation, "2023-01-01"),
     fetchFredSeries(SERIES.fedFunds, "2023-01-01"),
