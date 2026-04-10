@@ -877,26 +877,30 @@ export default async function EconomicAnalysisPage() {
   let ismServicesData: Observation[] = [];
   let fetchError: string | null = null;
 
-  try {
-    const [
-      unemploymentRaw,
-      inflationRaw,
-      fedFundsRaw,
-      gdpGrowthRaw,
-      ismManufacturingRaw,
-      ismServicesRaw,
-    ] = await Promise.all([
-      fetchFredSeries(SERIES.unemployment, "2023-01-01"),
-      fetchFredSeries(SERIES.inflation, "2023-01-01"),
-      fetchFredSeries(SERIES.fedFunds, "2023-01-01"),
-      fetchFredSeries(SERIES.gdpGrowth, "2021-01-01"),
-      fetchFredSeries(SERIES.ismManufacturing, "2023-01-01"),
-      fetchFredSeries(SERIES.ismServices, "2023-01-01"),
-    ]);
+   const results = await Promise.allSettled([
+    fetchFredSeries(SERIES.unemployment, "2023-01-01"),
+    fetchFredSeries(SERIES.inflation, "2023-01-01"),
+    fetchFredSeries(SERIES.fedFunds, "2023-01-01"),
+    fetchFredSeries(SERIES.gdpGrowth, "2021-01-01"),
+    fetchFredSeries(SERIES.ismManufacturing, "2023-01-01"),
+    fetchFredSeries(SERIES.ismServices, "2023-01-01"),
+  ]);
 
-    unemploymentData = unemploymentRaw.filter((d) => d.value !== null);
+  const [
+    unemploymentResult,
+    inflationResult,
+    fedFundsResult,
+    gdpGrowthResult,
+    ismManufacturingResult,
+    ismServicesResult,
+  ] = results;
 
-    inflationData = inflationRaw
+  if (unemploymentResult.status === "fulfilled") {
+    unemploymentData = unemploymentResult.value.filter((d) => d.value !== null);
+  }
+
+  if (inflationResult.status === "fulfilled") {
+    inflationData = inflationResult.value
       .map((d, i, arr) => {
         if (i < 12 || d.value === null || arr[i - 12]?.value === null) {
           return { date: d.date, value: null };
@@ -906,14 +910,37 @@ export default async function EconomicAnalysisPage() {
         return { date: d.date, value: yoy };
       })
       .filter((d) => d.value !== null);
+  }
 
-    fedFundsData = fedFundsRaw.filter((d) => d.value !== null);
-    gdpGrowthData = gdpGrowthRaw.filter((d) => d.value !== null);
-    ismManufacturingData = ismManufacturingRaw.filter((d) => d.value !== null);
-    ismServicesData = ismServicesRaw.filter((d) => d.value !== null);
-  } catch (error) {
-    fetchError =
-      error instanceof Error ? error.message : "Macro data request failed.";
+  if (fedFundsResult.status === "fulfilled") {
+    fedFundsData = fedFundsResult.value.filter((d) => d.value !== null);
+  }
+
+  if (gdpGrowthResult.status === "fulfilled") {
+    gdpGrowthData = gdpGrowthResult.value.filter((d) => d.value !== null);
+  }
+
+  if (ismManufacturingResult.status === "fulfilled") {
+    ismManufacturingData = ismManufacturingResult.value.filter(
+      (d) => d.value !== null
+    );
+  }
+
+  if (ismServicesResult.status === "fulfilled") {
+    ismServicesData = ismServicesResult.value.filter((d) => d.value !== null);
+  }
+
+  const failed: string[] = [];
+
+  if (unemploymentResult.status === "rejected") failed.push("unemployment");
+  if (inflationResult.status === "rejected") failed.push("inflation");
+  if (fedFundsResult.status === "rejected") failed.push("fed funds");
+  if (gdpGrowthResult.status === "rejected") failed.push("GDP growth");
+  if (ismManufacturingResult.status === "rejected") failed.push("ISM manufacturing");
+  if (ismServicesResult.status === "rejected") failed.push("ISM services");
+
+  if (failed.length > 0) {
+    fetchError = `Some series failed to load: ${failed.join(", ")}.`;
   }
 
   const unemploymentLatest = lastValid(unemploymentData);
