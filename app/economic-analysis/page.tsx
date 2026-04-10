@@ -1,25 +1,45 @@
 import Link from "next/link";
 
-export const revalidate = 3600;
+export const revalidate = 60 * 60;
 
-type FredObservation = {
+type Observation = {
   date: string;
-  value: string;
+  value: number | null;
 };
 
 type FredResponse = {
-  observations?: FredObservation[];
+  observations?: Array<{
+    date: string;
+    value: string;
+  }>;
 };
 
-type Point = {
-  date: string;
-  value: number;
+type MetricCard = {
+  title: string;
+  section: string;
+  latestLabel: string;
+  latest: number | null;
+  deltaLabel: string;
+  delta: number | null;
+  signal: string;
+  signalColor: string;
+  data: Observation[];
+  lineColor: string;
+  commentary: string;
 };
 
-type ChartSeries = {
-  name: string;
-  color: string;
-  points: Point[];
+const FRED_KEY =
+  process.env.FRED_API_KEY || process.env.NEXT_PUBLIC_FRED_API_KEY || "";
+
+const SERIES = {
+  unemployment: "UNRATE",
+  inflation: "CPIAUCSL",
+  fedFunds: "FEDFUNDS",
+  gdpGrowth: "A191RL1Q225SBEA",
+
+  // ISM panel
+  ismManufacturing: "NAPM",
+  ismServices: "NAPMS",
 };
 
 const COLORS = {
@@ -30,647 +50,264 @@ const COLORS = {
   text: "#f8fafc",
   muted: "#94a3b8",
   accent: "#a78bfa",
+  green: "#22e89a",
+  red: "#ff5c78",
+  amber: "#facc15",
   blue: "#60a5fa",
-  purple: "#a78bfa",
-  amber: "#f59e0b",
-  green: "#4ade80",
-  red: "#fb7185",
-  gold: "#facc15",
+  orange: "#ffb020",
+  violet: "#a78bfa",
 };
 
-export default async function EconomicAnalysisPage() {
-  const fredKey =
-    process.env.FRED_API_KEY || process.env.NEXT_PUBLIC_FRED_API_KEY || "";
-
-  const [unemploymentRaw, cpiRaw, fedFundsRaw, gdpRaw, recessionRaw] =
-    await Promise.all([
-      getFredSeries("UNRATE", fredKey),
-      getFredSeries("CPIAUCSL", fredKey),
-      getFredSeries("FEDFUNDS", fredKey),
-      getFredSeries("A191RL1Q225SBEA", fredKey),
-      getFredSeries("USREC", fredKey),
-    ]);
-
-  const unemployment = unemploymentRaw.slice(-24);
-  const inflation = computeYoY(cpiRaw).slice(-24);
-  const fedFunds = fedFundsRaw.slice(-24);
-  const gdpGrowth = gdpRaw.slice(-16);
-  const recession = recessionRaw;
-
-  const latestUnemployment = getLatest(unemployment);
-  const latestInflation = getLatest(inflation);
-  const latestFedFunds = getLatest(fedFunds);
-  const latestGDP = getLatest(gdpGrowth);
-
-  const unemploymentDelta = getDelta(unemployment);
-  const inflationDelta = getDelta(inflation);
-  const fedFundsDelta = getDelta(fedFunds);
-  const gdpDelta = getDelta(gdpGrowth);
-
-  const regime = classifyRegime({
-    inflation: latestInflation?.value ?? null,
-    unemployment: latestUnemployment?.value ?? null,
-    gdp: latestGDP?.value ?? null,
-    fedFunds: latestFedFunds?.value ?? null,
-    inflationDelta,
-    unemploymentDelta,
-    gdpDelta,
-  });
-
-  const laborSignal = getLaborSignal(
-    latestUnemployment?.value ?? null,
-    unemploymentDelta
-  );
-  const inflationSignal = getInflationSignal(
-    latestInflation?.value ?? null,
-    inflationDelta
-  );
-  const policySignal = getPolicySignal(latestFedFunds?.value ?? null);
-  const growthSignal = getGrowthSignal(latestGDP?.value ?? null, gdpDelta);
-
-  const combinedSeries: ChartSeries[] = [
-    {
-      name: "Fed Funds",
-      color: COLORS.blue,
-      points: normalizeSeries(fedFunds),
-    },
-    {
-      name: "GDP Growth",
-      color: COLORS.purple,
-      points: normalizeSeries(gdpGrowth),
-    },
-    {
-      name: "Inflation",
-      color: COLORS.amber,
-      points: normalizeSeries(inflation),
-    },
-    {
-      name: "Unemployment",
-      color: COLORS.green,
-      points: normalizeSeries(unemployment),
-    },
-  ];
-
-  const recessionBands = buildRecessionBands(
-    recession,
-    getChartDomainStart(combinedSeries),
-    getChartDomainEnd(combinedSeries)
-  );
-
-  const assessment = buildAssessment({
-    regime,
-    inflation: latestInflation?.value ?? null,
-    unemployment: latestUnemployment?.value ?? null,
-    gdp: latestGDP?.value ?? null,
-    fedFunds: latestFedFunds?.value ?? null,
-    inflationDelta,
-    unemploymentDelta,
-    gdpDelta,
-  });
-
-  const marketImplications = buildMarketImplications({
-    regime,
-    inflation: latestInflation?.value ?? null,
-    unemployment: latestUnemployment?.value ?? null,
-    gdp: latestGDP?.value ?? null,
-    fedFunds: latestFedFunds?.value ?? null,
-    inflationDelta,
-    unemploymentDelta,
-    gdpDelta,
-  });
-
-  const lastUpdated = latestDateString([
-    latestUnemployment,
-    latestInflation,
-    latestFedFunds,
-    latestGDP,
-  ]);
-
-  return (
-    <main className="min-h-screen bg-slate-950 text-slate-50">
-      <div className="mx-auto max-w-[1700px] px-4 py-8 md:px-8 lg:px-10 xl:px-12">
-        <section className="border-b border-slate-800 pb-8">
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                U.S. Macro Monitor
-              </p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-white md:text-6xl">
-                U.S. Macroeconomic Dashboard
-              </h1>
-              <p className="mt-4 max-w-4xl text-lg leading-8 text-slate-300">
-                Live tracking of inflation, labor market conditions, monetary
-                policy, and real activity using FRED time-series data.
-              </p>
-            </div>
-
-            <div className="grid gap-3 text-sm text-slate-300 md:min-w-[360px] md:grid-cols-2 xl:grid-cols-4">
-              <MetaChip label="Current Regime" value={regime.label} accent />
-              <MetaChip label="Source" value="FRED" />
-              <MetaChip label="Last Updated" value={lastUpdated} />
-              <MetaChip label="Coverage" value="Macro Monitor" />
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <a
-              href="#labor"
-              className="rounded-lg border border-slate-800 bg-slate-900 px-5 py-3 text-sm text-slate-200 transition hover:border-slate-700 hover:bg-slate-800"
-            >
-              Labor
-            </a>
-            <a
-              href="#prices"
-              className="rounded-lg border border-slate-800 bg-slate-900 px-5 py-3 text-sm text-slate-200 transition hover:border-slate-700 hover:bg-slate-800"
-            >
-              Inflation
-            </a>
-            <a
-              href="#policy"
-              className="rounded-lg border border-slate-800 bg-slate-900 px-5 py-3 text-sm text-slate-200 transition hover:border-slate-700 hover:bg-slate-800"
-            >
-              Policy
-            </a>
-            <a
-              href="#output"
-              className="rounded-lg border border-slate-800 bg-slate-900 px-5 py-3 text-sm text-slate-200 transition hover:border-slate-700 hover:bg-slate-800"
-            >
-              Output
-            </a>
-          </div>
-        </section>
-
-        <section className="mt-8 grid gap-6 xl:grid-cols-[1.05fr_1.45fr]">
-          <Panel>
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-              Regime Summary
-            </p>
-
-            <div className="mt-6">
-              <p className="text-sm text-slate-400">Current Regime</p>
-              <h2 className="mt-2 text-4xl font-semibold tracking-tight text-violet-400 md:text-5xl">
-                {regime.label}
-              </h2>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
-                {regime.subtitle}
-              </p>
-            </div>
-
-            <div className="mt-8 grid gap-6 border-t border-slate-800 pt-8 md:grid-cols-2">
-              <MetricBlock
-                label="Inflation"
-                value={formatPercent(latestInflation?.value)}
-                delta={formatDelta(inflationDelta, "pp")}
-                deltaPositiveBad={false}
-              />
-              <MetricBlock
-                label="Unemployment"
-                value={formatPercent(latestUnemployment?.value)}
-                delta={formatDelta(unemploymentDelta, "pp")}
-                deltaPositiveBad
-              />
-              <MetricBlock
-                label="GDP Growth"
-                value={formatPercent(latestGDP?.value)}
-                delta={formatDelta(gdpDelta, "pp")}
-                deltaPositiveBad={false}
-              />
-              <MetricBlock
-                label="Fed Funds"
-                value={formatPercent(latestFedFunds?.value)}
-                delta={formatDelta(fedFundsDelta, "pp")}
-                deltaPositiveBad
-              />
-            </div>
-
-            <div className="mt-8 border-t border-slate-800 pt-8">
-              <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                Macro Assessment
-              </p>
-              <p className="mt-4 max-w-3xl text-lg leading-9 text-slate-100">
-                {assessment}
-              </p>
-            </div>
-          </Panel>
-
-          <Panel>
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                  Composite Macro View
-                </p>
-                <h3 className="mt-3 text-2xl font-semibold tracking-tight text-white md:text-4xl">
-                  All Indicators in One Chart
-                </h3>
-                <p className="mt-3 text-base leading-7 text-slate-400">
-                  Indexed comparison across inflation, labor, policy, and growth
-                  series. Base = 100 at each series’ first visible observation.
-                </p>
-              </div>
-              <p className="text-sm text-slate-400">Base = 100</p>
-            </div>
-
-            <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950 p-4">
-              <MultiSeriesChart
-                series={combinedSeries}
-                recessionBands={recessionBands}
-                height={420}
-              />
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
-              {combinedSeries.map((item) => (
-                <LegendItem
-                  key={item.name}
-                  color={item.color}
-                  label={item.name}
-                />
-              ))}
-            </div>
-          </Panel>
-        </section>
-
-        <section className="mt-8 grid gap-6 xl:grid-cols-2">
-          <IndicatorPanel
-            id="labor"
-            sectionLabel="Labor Market"
-            title="U.S. Unemployment"
-            latest={formatPercent(latestUnemployment?.value)}
-            deltaLabel="Δ MoM"
-            delta={formatDelta(unemploymentDelta, "pp")}
-            deltaPositiveBad
-            signal={laborSignal.label}
-            signalColor={laborSignal.color}
-            chart={
-              <SingleSeriesChart
-                points={unemployment}
-                color={COLORS.green}
-                height={270}
-              />
-            }
-            note="Labor conditions remain contained, though recent firming in unemployment warrants monitoring."
-          />
-
-          <IndicatorPanel
-            id="prices"
-            sectionLabel="Prices"
-            title="U.S. Inflation"
-            latest={formatPercent(latestInflation?.value)}
-            deltaLabel="Δ MoM"
-            delta={formatDelta(inflationDelta, "pp")}
-            deltaPositiveBad={false}
-            signal={inflationSignal.label}
-            signalColor={inflationSignal.color}
-            chart={
-              <SingleSeriesChart
-                points={inflation}
-                color={COLORS.amber}
-                height={270}
-              />
-            }
-            note="Disinflation remains in place, although price pressures have not been fully eliminated."
-          />
-
-          <IndicatorPanel
-            id="policy"
-            sectionLabel="Monetary Policy"
-            title="Fed Funds Rate"
-            latest={formatPercent(latestFedFunds?.value)}
-            deltaLabel="Δ MoM"
-            delta={formatDelta(fedFundsDelta, "pp")}
-            deltaPositiveBad
-            signal={policySignal.label}
-            signalColor={policySignal.color}
-            chart={
-              <SingleSeriesChart
-                points={fedFunds}
-                color={COLORS.blue}
-                height={270}
-              />
-            }
-            note="Policy remains restrictive in level terms, even as the recent direction appears less hawkish than before."
-          />
-
-          <IndicatorPanel
-            id="output"
-            sectionLabel="Output"
-            title="Real GDP Growth"
-            latest={formatPercent(latestGDP?.value)}
-            deltaLabel="Δ QoQ"
-            delta={formatDelta(gdpDelta, "pp")}
-            deltaPositiveBad={false}
-            signal={growthSignal.label}
-            signalColor={growthSignal.color}
-            chart={
-              <SingleSeriesChart
-                points={gdpGrowth}
-                color={COLORS.purple}
-                height={270}
-                quarterlyLabels
-              />
-            }
-            note="Growth remains positive, but the latest output print points to weaker underlying momentum."
-          />
-        </section>
-
-        <section className="mt-8 grid gap-6 xl:grid-cols-[1.35fr_0.85fr]">
-          <Panel>
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-              Desk Interpretation
-            </p>
-            <h3 className="mt-4 text-2xl font-semibold tracking-tight text-white md:text-4xl">
-              Macro Assessment
-            </h3>
-
-            <div className="mt-8 max-w-5xl space-y-7 text-xl leading-10 text-slate-100">
-              {assessment.split("\n").map((paragraph, index) => (
-                <p key={index}>{paragraph}</p>
-              ))}
-            </div>
-          </Panel>
-
-          <Panel>
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-              Market Implications
-            </p>
-            <h3 className="mt-4 text-2xl font-semibold tracking-tight text-white md:text-4xl">
-              House View
-            </h3>
-
-            <div className="mt-8 space-y-4">
-              {marketImplications.map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-xl border border-slate-800 bg-slate-950 p-5"
-                >
-                  <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                    {item.title}
-                  </p>
-                  <p className="mt-3 text-lg leading-8 text-slate-100">
-                    {item.text}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-8 rounded-xl border border-slate-800 bg-slate-950 p-5">
-              <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                Navigation
-              </p>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Link
-                  href="/"
-                  className="rounded-lg border border-slate-700 px-4 py-3 text-sm text-slate-200 transition hover:border-slate-600 hover:bg-slate-900"
-                >
-                  Return Home
-                </Link>
-                <a
-                  href="#top"
-                  className="rounded-lg border border-slate-700 px-4 py-3 text-sm text-slate-200 transition hover:border-slate-600 hover:bg-slate-900"
-                >
-                  Back to Top
-                </a>
-              </div>
-            </div>
-          </Panel>
-        </section>
-      </div>
-    </main>
-  );
+function parseFredValue(value: string): number | null {
+  if (value === "." || value === "" || value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
-async function getFredSeries(seriesId: string, apiKey: string): Promise<Point[]> {
-  if (!apiKey) return [];
+async function fetchFredSeries(
+  seriesId: string,
+  observationStart?: string
+): Promise<Observation[]> {
+  if (!FRED_KEY) return [];
 
-  const url = new URL(
-    "https://api.stlouisfed.org/fred/series/observations"
-  );
+  const url = new URL("https://api.stlouisfed.org/fred/series/observations");
   url.searchParams.set("series_id", seriesId);
-  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("api_key", FRED_KEY);
   url.searchParams.set("file_type", "json");
-  url.searchParams.set("sort_order", "asc");
-
-  const response = await fetch(url.toString(), {
-    next: { revalidate: 3600 },
-  });
-
-  if (!response.ok) return [];
-
-  const data = (await response.json()) as FredResponse;
-  const observations = data.observations ?? [];
-
-  return observations
-    .map((obs) => ({
-      date: obs.date,
-      value: Number(obs.value),
-    }))
-    .filter((point) => Number.isFinite(point.value));
-}
-
-function computeYoY(points: Point[]): Point[] {
-  const result: Point[] = [];
-
-  for (let i = 12; i < points.length; i += 1) {
-    const current = points[i];
-    const prior = points[i - 12];
-
-    if (!current || !prior || prior.value === 0) continue;
-
-    result.push({
-      date: current.date,
-      value: ((current.value / prior.value - 1) * 100),
-    });
+  if (observationStart) {
+    url.searchParams.set("observation_start", observationStart);
   }
 
-  return result;
-}
+  const res = await fetch(url.toString(), {
+    next: { revalidate },
+  });
 
-function normalizeSeries(points: Point[]): Point[] {
-  if (!points.length) return [];
-  const base = points[0].value;
-  if (!Number.isFinite(base) || base === 0) return [];
+  if (!res.ok) {
+    throw new Error(`FRED request failed for ${seriesId}: ${res.status}`);
+  }
 
-  return points.map((point) => ({
-    date: point.date,
-    value: (point.value / base) * 100,
+  const json = (await res.json()) as FredResponse;
+  const observations = json.observations ?? [];
+
+  return observations.map((obs) => ({
+    date: obs.date,
+    value: parseFredValue(obs.value),
   }));
 }
 
-function getLatest(points: Point[]): Point | null {
-  return points.length ? points[points.length - 1] : null;
+function filterValid(data: Observation[]) {
+  return data.filter((d) => d.value !== null) as Array<{
+    date: string;
+    value: number;
+  }>;
 }
 
-function getDelta(points: Point[]): number | null {
-  if (points.length < 2) return null;
-  const latest = points[points.length - 1]?.value;
-  const prior = points[points.length - 2]?.value;
-  if (latest === undefined || prior === undefined) return null;
-  return latest - prior;
+function lastValid(data: Observation[]): number | null {
+  for (let i = data.length - 1; i >= 0; i -= 1) {
+    if (data[i].value !== null) return data[i].value;
+  }
+  return null;
 }
 
-function formatPercent(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "--";
-  return `${value.toFixed(1)}%`;
+function prevValid(data: Observation[]): number | null {
+  let found = 0;
+  for (let i = data.length - 1; i >= 0; i -= 1) {
+    if (data[i].value !== null) {
+      found += 1;
+      if (found === 2) return data[i].value;
+    }
+  }
+  return null;
 }
 
-function formatDelta(
-  value: number | null | undefined,
-  suffix = ""
+function latestDelta(data: Observation[]): number | null {
+  const latest = lastValid(data);
+  const prev = prevValid(data);
+  if (latest === null || prev === null) return null;
+  return latest - prev;
+}
+
+function formatValue(
+  value: number | null,
+  suffix = "%",
+  digits = 1
 ): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "--";
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(1)} ${suffix}`.trim();
+  if (value === null) return "--";
+  return `${value.toFixed(digits)}${suffix}`;
 }
 
-function latestDateString(points: Array<Point | null>): string {
-  const valid = points
-    .filter((point): point is Point => Boolean(point))
-    .map((point) => new Date(point.date).getTime())
-    .filter((time) => Number.isFinite(time));
+function formatDelta(value: number | null, digits = 1): string {
+  if (value === null) return "--";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(digits)} pp`;
+}
 
-  if (!valid.length) return "Unavailable";
+function monthLabel(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+}
 
-  const latest = new Date(Math.max(...valid));
-  return latest.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+function quarterLabel(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  const q = Math.floor(d.getUTCMonth() / 3) + 1;
+  const y = String(d.getUTCFullYear()).slice(-2);
+  return `Q${q} ${y}`;
+}
+
+function latestLabelForSeries(isQuarterly: boolean, date: string): string {
+  if (!date) return "--";
+  return isQuarterly ? quarterLabel(date) : monthLabel(date);
+}
+
+function takeTail(data: Observation[], n: number): Observation[] {
+  return data.slice(Math.max(0, data.length - n));
+}
+
+function getSignal(
+  key: "unemployment" | "inflation" | "fedFunds" | "gdpGrowth",
+  latest: number | null,
+  delta: number | null
+): { signal: string; color: string } {
+  if (latest === null) {
+    return { signal: "Unavailable", color: COLORS.muted };
+  }
+
+  if (key === "unemployment") {
+    if (latest <= 4.5 && (delta ?? 0) <= 0.1) {
+      return { signal: "Stable Labor", color: COLORS.green };
+    }
+    if (latest <= 5.0) {
+      return { signal: "Softening", color: COLORS.amber };
+    }
+    return { signal: "Deteriorating", color: COLORS.red };
+  }
+
+  if (key === "inflation") {
+    if (latest <= 3.0 && (delta ?? 0) <= 0) {
+      return { signal: "Moderating", color: COLORS.amber };
+    }
+    if (latest <= 3.5) {
+      return { signal: "Sticky", color: COLORS.amber };
+    }
+    return { signal: "Elevated", color: COLORS.red };
+  }
+
+  if (key === "fedFunds") {
+    if (latest >= 4.5) {
+      return { signal: "Restrictive", color: COLORS.red };
+    }
+    if (latest >= 3.0) {
+      return { signal: "Tight", color: COLORS.blue };
+    }
+    return { signal: "Easing", color: COLORS.green };
+  }
+
+  if (latest > 1.5) {
+    return { signal: "Healthy Growth", color: COLORS.green };
+  }
+  if (latest > 0) {
+    return { signal: "Weak Growth", color: COLORS.amber };
+  }
+  return { signal: "Contraction Risk", color: COLORS.red };
 }
 
 function classifyRegime(input: {
   inflation: number | null;
-  unemployment: number | null;
-  gdp: number | null;
-  fedFunds: number | null;
   inflationDelta: number | null;
+  unemployment: number | null;
   unemploymentDelta: number | null;
-  gdpDelta: number | null;
+  gdpGrowth: number | null;
 }) {
-  const {
-    inflation,
-    unemployment,
-    gdp,
-    inflationDelta,
-    unemploymentDelta,
-    gdpDelta,
-  } = input;
+  const { inflation, inflationDelta, unemployment, unemploymentDelta, gdpGrowth } =
+    input;
 
   if (
-    inflation === null ||
-    unemployment === null ||
-    gdp === null ||
-    inflationDelta === null ||
-    unemploymentDelta === null
-  ) {
-    return {
-      label: "Insufficient Current Observations",
-      subtitle:
-        "The live data flow is not yet sufficient to determine a clear macro regime.",
-    };
-  }
-
-  if (inflation > 3.5 && gdp > 1.5 && unemployment <= 4.3) {
-    return {
-      label: "Inflationary Expansion",
-      subtitle:
-        "Demand conditions remain firm, but inflation persistence keeps the policy backdrop restrictive.",
-    };
-  }
-
-  if (
-    inflation < 3.0 &&
-    inflationDelta <= 0 &&
-    unemployment <= 4.6 &&
-    gdp > 0
+    inflation !== null &&
+    unemployment !== null &&
+    gdpGrowth !== null &&
+    inflation <= 3.2 &&
+    (inflationDelta ?? 0) <= 0 &&
+    unemployment <= 4.7 &&
+    (unemploymentDelta ?? 0) <= 0.2 &&
+    gdpGrowth > 0
   ) {
     return {
       label: "Soft Landing",
-      subtitle:
-        "Disinflation is progressing while labor market deterioration remains limited and growth stays positive.",
+      color: COLORS.accent,
+      summary:
+        "Disinflation continues with limited labor market deterioration; growth remains positive but decelerating.",
     };
   }
 
-  if (gdp <= 0 || (gdpDelta !== null && gdpDelta < -2.0 && unemployment > 4.8)) {
+  if (
+    inflation !== null &&
+    gdpGrowth !== null &&
+    inflation <= 3.5 &&
+    gdpGrowth > 0 &&
+    gdpGrowth <= 1.0
+  ) {
     return {
-      label: "Growth Downshift",
-      subtitle:
-        "Activity momentum is deteriorating materially, increasing the probability of a broader slowdown.",
+      label: "Late-Cycle Slowdown",
+      color: COLORS.amber,
+      summary:
+        "Inflation pressure has eased, but growth momentum is materially softer. The cycle remains expansionary, though increasingly fragile.",
+    };
+  }
+
+  if (
+    inflation !== null &&
+    gdpGrowth !== null &&
+    inflation > 3.5 &&
+    gdpGrowth > 0
+  ) {
+    return {
+      label: "Inflation Shock",
+      color: COLORS.red,
+      summary:
+        "Price pressures remain elevated relative to target, leaving policy under pressure to stay restrictive despite ongoing growth.",
+    };
+  }
+
+  if (
+    unemployment !== null &&
+    gdpGrowth !== null &&
+    (unemployment >= 5.0 || gdpGrowth < 0)
+  ) {
+    return {
+      label: "Hard Landing Watch",
+      color: COLORS.red,
+      summary:
+        "Labor conditions and output momentum are weakening enough to raise concern about broader cyclical deterioration.",
     };
   }
 
   return {
-    label: "Late-Cycle Deceleration",
-    subtitle:
-      "Inflation is easing, but softer growth and a still-restrictive policy backdrop argue for caution.",
+    label: "Mixed Regime",
+    color: COLORS.muted,
+    summary:
+      "Signals remain mixed across inflation, labor, policy, and growth. Current conditions do not map cleanly into a single dominant regime.",
   };
 }
 
-function getLaborSignal(
-  value: number | null,
-  delta: number | null
-): { label: string; color: string } {
-  if (value === null) return { label: "Unavailable", color: COLORS.muted };
-  if (value <= 4.5 && (delta ?? 0) <= 0.1) {
-    return { label: "Stable Labor", color: COLORS.green };
-  }
-  if (value <= 4.9) {
-    return { label: "Softening", color: COLORS.gold };
-  }
-  return { label: "Deteriorating", color: COLORS.red };
-}
-
-function getInflationSignal(
-  value: number | null,
-  delta: number | null
-): { label: string; color: string } {
-  if (value === null) return { label: "Unavailable", color: COLORS.muted };
-  if (value < 3.0 && (delta ?? 0) <= 0) {
-    return { label: "Moderating", color: COLORS.gold };
-  }
-  if (value < 3.5) {
-    return { label: "Sticky", color: COLORS.amber };
-  }
-  return { label: "Elevated", color: COLORS.red };
-}
-
-function getPolicySignal(value: number | null): { label: string; color: string } {
-  if (value === null) return { label: "Unavailable", color: COLORS.muted };
-  if (value >= 4.5) return { label: "Restrictive", color: COLORS.red };
-  if (value >= 3.0) return { label: "Tight", color: COLORS.blue };
-  return { label: "Easing", color: COLORS.green };
-}
-
-function getGrowthSignal(
-  value: number | null,
-  delta: number | null
-): { label: string; color: string } {
-  if (value === null) return { label: "Unavailable", color: COLORS.muted };
-  if (value > 1.5) return { label: "Expansionary", color: COLORS.green };
-  if (value > 0) return { label: "Weak Growth", color: COLORS.gold };
-  if ((delta ?? 0) < 0) return { label: "Contraction Risk", color: COLORS.red };
-  return { label: "Fragile", color: COLORS.amber };
-}
-
-function buildAssessment(input: {
-  regime: { label: string; subtitle: string };
+function macroAssessment(input: {
   inflation: number | null;
-  unemployment: number | null;
-  gdp: number | null;
-  fedFunds: number | null;
   inflationDelta: number | null;
+  unemployment: number | null;
   unemploymentDelta: number | null;
-  gdpDelta: number | null;
-}): string {
+  fedFunds: number | null;
+  gdpGrowth: number | null;
+  gdpGrowthDelta: number | null;
+  regime: string;
+}) {
   const {
-    regime,
     inflation,
-    unemployment,
-    gdp,
-    fedFunds,
     inflationDelta,
+    unemployment,
     unemploymentDelta,
-    gdpDelta,
+    fedFunds,
+    gdpGrowth,
+    gdpGrowthDelta,
+    regime,
   } = input;
 
   const p1 =
@@ -679,593 +316,1017 @@ function buildAssessment(input: {
           1
         )}%, while unemployment stands at ${unemployment.toFixed(
           1
-        )}%. The latest mix suggests that disinflation is continuing, and labor market deterioration remains limited rather than disorderly.`
-      : `Current inflation and labor market observations remain insufficient for a complete regime read.`; 
+        )}%. The latest mix suggests that disinflation is ${
+          (inflationDelta ?? 0) <= 0 ? "continuing" : "stalling"
+        }, and labor market deterioration remains ${
+          (unemploymentDelta ?? 0) <= 0.1 ? "limited rather than disorderly" : "more visible"
+        }.`
+      : "Inflation and labor data are partially unavailable, which limits the breadth of the current macro read.";
 
   const p2 =
-    fedFunds !== null
+    fedFunds !== null && gdpGrowth !== null
       ? `The federal funds rate is currently ${fedFunds.toFixed(
           2
-        )}%, leaving policy restrictive in level terms. That said, the direction of macro pressure appears less adverse than during the earlier tightening phase.`
-      : `Policy data is currently unavailable, limiting interpretation of the broader rates backdrop.`;
-
-  const p3 =
-    gdp !== null
-      ? `Real GDP growth is ${gdp.toFixed(
+        )}%, leaving policy ${
+          fedFunds >= 3 ? "restrictive in level terms" : "less restrictive than before"
+        }. Real GDP growth is ${gdpGrowth.toFixed(
           1
-        )}%, and the latest change versus the prior quarter is ${
-          gdpDelta === null
-            ? "not available"
-            : `${gdpDelta > 0 ? "+" : ""}${gdpDelta.toFixed(1)} percentage points`
-        }. Activity remains positive, but the latest output print points to weaker underlying momentum.`
-      : `Output data is currently unavailable, so activity momentum cannot be fully assessed.`;
+        )}%, and the latest change versus the prior quarter is ${formatDelta(
+          gdpGrowthDelta,
+          1
+        )}. Activity remains positive, but the latest output print points to weaker underlying momentum.`
+      : "Policy and output data are partially unavailable, so cyclical momentum should be interpreted with caution.";
 
-  const p4 = `On balance, current conditions are most consistent with a ${regime.label.toLowerCase()} regime. The central question from here is whether easing inflation can continue without a broader deterioration in employment and growth conditions.`;
+  const p3 = `On balance, current conditions are most consistent with a ${regime.toLowerCase()} regime. The central question from here is whether easing inflation can continue without a broader deterioration in employment and growth conditions.`;
 
-  return [p1, p2, p3, p4].join("\n");
+  return [p1, p2, p3];
 }
 
-function buildMarketImplications(input: {
-  regime: { label: string; subtitle: string };
-  inflation: number | null;
-  unemployment: number | null;
-  gdp: number | null;
-  fedFunds: number | null;
+function marketImplications(input: {
+  regime: string;
   inflationDelta: number | null;
+  gdpGrowth: number | null;
+  fedFunds: number | null;
   unemploymentDelta: number | null;
-  gdpDelta: number | null;
 }) {
-  const { inflation, unemployment, gdp, gdpDelta } = input;
+  const { regime, inflationDelta, gdpGrowth, fedFunds, unemploymentDelta } = input;
 
-  const ratesText =
-    inflation !== null && inflation < 3.0
+  const rates =
+    (inflationDelta ?? 0) <= 0 && (gdpGrowth ?? 0) <= 1.5
       ? "Disinflation improves the medium-term rates backdrop and supports a less restrictive policy path, though timing risk remains."
-      : "Persistent inflation leaves the rates backdrop sensitive to upside surprises and keeps front-end easing expectations vulnerable.";
+      : "Sticky inflation or firmer growth argues for a higher-for-longer rates profile.";
 
-  const equitiesText =
-    gdp !== null && gdp > 0
+  const equities =
+    regime === "Soft Landing"
       ? "Positive growth remains supportive for broad risk assets, but softer momentum argues for more selective cyclical exposure."
-      : "A weaker activity backdrop would likely narrow equity leadership and favor quality, defensives, and balance-sheet resilience.";
+      : "Equity leadership is likely to narrow as growth momentum softens and macro visibility becomes less uniform.";
 
-  const creditText =
-    unemployment !== null && unemployment <= 4.6
+  const credit =
+    (unemploymentDelta ?? 0) <= 0.1
       ? "Contained labor market stress remains broadly constructive for credit, though slowing growth argues for tighter issuer selection."
-      : "A softer labor backdrop would warrant more caution in lower-quality credit and a greater focus on balance-sheet durability.";
+      : "Softening labor conditions raise the risk of wider credit dispersion and more defensive positioning.";
 
-  const riskText =
-    gdpDelta !== null && gdpDelta < -2
+  const risk =
+    (fedFunds ?? 0) >= 3
       ? "The main macro risk is that slowing output broadens faster than inflation normalizes, shifting the regime from soft landing toward a more material growth downshift."
-      : "The main macro risk is that inflation stalls before activity reaccelerates, leaving policy tight for longer than markets currently discount.";
+      : "The main macro risk is that disinflation stalls before growth fully stabilizes.";
 
   return [
-    { title: "Rates", text: ratesText },
-    { title: "Equities", text: equitiesText },
-    { title: "Credit", text: creditText },
-    { title: "Risk Monitor", text: riskText },
+    { label: "Rates", text: rates },
+    { label: "Equities", text: equities },
+    { label: "Credit", text: credit },
+    { label: "Risk Monitor", text: risk },
   ];
 }
 
-function getChartDomainStart(series: ChartSeries[]): Date | null {
-  const times = series
-    .flatMap((item) => item.points)
-    .map((point) => new Date(point.date).getTime())
-    .filter((time) => Number.isFinite(time));
-
-  if (!times.length) return null;
-  return new Date(Math.min(...times));
+function scaleX(x: number, min: number, max: number, width: number) {
+  if (max === min) return 0;
+  return ((x - min) / (max - min)) * width;
 }
 
-function getChartDomainEnd(series: ChartSeries[]): Date | null {
-  const times = series
-    .flatMap((item) => item.points)
-    .map((point) => new Date(point.date).getTime())
-    .filter((time) => Number.isFinite(time));
-
-  if (!times.length) return null;
-  return new Date(Math.max(...times));
+function scaleY(y: number, min: number, max: number, height: number) {
+  if (max === min) return height / 2;
+  return height - ((y - min) / (max - min)) * height;
 }
 
-function buildRecessionBands(
-  recession: Point[],
-  domainStart: Date | null,
-  domainEnd: Date | null
+function linePath(
+  data: Observation[],
+  width: number,
+  height: number,
+  minX: number,
+  maxX: number,
+  minY: number,
+  maxY: number
 ) {
-  if (!domainStart || !domainEnd || !recession.length) return [];
+  const valid = filterValid(data);
+  if (valid.length === 0) return "";
 
-  const filtered = recession.filter((point) => {
-    const time = new Date(point.date).getTime();
-    return (
-      Number.isFinite(time) &&
-      time >= domainStart.getTime() &&
-      time <= domainEnd.getTime()
-    );
-  });
-
-  const bands: Array<{ start: string; end: string }> = [];
-  let activeStart: string | null = null;
-
-  filtered.forEach((point, index) => {
-    if (point.value === 1 && activeStart === null) {
-      activeStart = point.date;
-    }
-
-    const next = filtered[index + 1];
-    if (
-      activeStart !== null &&
-      (point.value !== 1 || !next || next.value !== 1)
-    ) {
-      bands.push({
-        start: activeStart,
-        end: point.date,
-      });
-      activeStart = null;
-    }
-  });
-
-  return bands;
+  return valid
+    .map((d, i) => {
+      const x = scaleX(new Date(`${d.date}T00:00:00`).getTime(), minX, maxX, width);
+      const y = scaleY(d.value, minY, maxY, height);
+      return `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
 }
 
-function formatAxisDate(dateStr: string, quarterly = false) {
-  const date = new Date(dateStr);
+function yTicks(minY: number, maxY: number, n = 5) {
+  const step = (maxY - minY) / n;
+  return Array.from({ length: n + 1 }, (_, i) => minY + step * i);
+}
 
-  if (quarterly) {
-    const quarter = Math.floor(date.getMonth() / 3) + 1;
-    return `Q${quarter} ${String(date.getFullYear()).slice(-2)}`;
+function niceBounds(values: number[]) {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return { min: 0, max: 1 };
+  }
+  if (min === max) return { min: min - 1, max: max + 1 };
+  const pad = (max - min) * 0.12;
+  return { min: min - pad, max: max + pad };
+}
+
+function MiniLineChart({
+  data,
+  color,
+  isQuarterly = false,
+}: {
+  data: Observation[];
+  color: string;
+  isQuarterly?: boolean;
+}) {
+  const width = 520;
+  const height = 180;
+  const valid = filterValid(data);
+
+  if (valid.length === 0) {
+    return (
+      <div className="mt-6 rounded-lg border border-slate-800 bg-slate-950/50 px-4 py-6 text-sm text-slate-500">
+        Series temporarily unavailable.
+      </div>
+    );
   }
 
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    year: "2-digit",
-  });
-}
+  const xs = valid.map((d) => new Date(`${d.date}T00:00:00`).getTime());
+  const ys = valid.map((d) => d.value);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const { min: minY, max: maxY } = niceBounds(ys);
+  const ticks = yTicks(minY, maxY, 4);
 
-function valueColor(delta: string, positiveBad: boolean) {
-  if (delta === "--") return "text-slate-500";
-  const isPositive = delta.trim().startsWith("+");
-  if (positiveBad) return isPositive ? "text-rose-400" : "text-emerald-400";
-  return isPositive ? "text-emerald-400" : "text-rose-400";
-}
-
-function Panel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/95 p-7 md:p-8">
-      {children}
-    </div>
-  );
-}
-
-function MetaChip({
-  label,
-  value,
-  accent = false,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-3">
-      <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
-        {label}
-      </p>
-      <p
-        className={`mt-2 text-sm font-medium ${
-          accent ? "text-violet-400" : "text-slate-200"
-        }`}
+    <div className="mt-6 overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${width + 65} ${height + 45}`}
+        className="h-auto w-full min-w-[520px]"
+        role="img"
+        aria-label="Mini series chart"
       >
-        {value}
-      </p>
+        <g transform="translate(42,8)">
+          {ticks.map((tick, i) => {
+            const y = scaleY(tick, minY, maxY, height);
+            return (
+              <g key={`tick-${i}`}>
+                <line
+                  x1={0}
+                  y1={y}
+                  x2={width}
+                  y2={y}
+                  stroke="rgba(148,163,184,0.12)"
+                />
+                <text
+                  x={-8}
+                  y={y + 4}
+                  textAnchor="end"
+                  fontSize="11"
+                  fill={COLORS.muted}
+                >
+                  {tick.toFixed(1)}
+                </text>
+              </g>
+            );
+          })}
+
+          <line x1={0} y1={0} x2={0} y2={height} stroke="rgba(148,163,184,0.28)" />
+          <line
+            x1={0}
+            y1={height}
+            x2={width}
+            y2={height}
+            stroke="rgba(148,163,184,0.28)"
+          />
+
+          <path
+            d={linePath(valid, width, height, minX, maxX, minY, maxY)}
+            fill="none"
+            stroke={color}
+            strokeWidth={3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          {valid
+            .filter((_, i) => i % Math.max(1, Math.floor(valid.length / 6)) === 0)
+            .slice(0, 6)
+            .map((d, i, arr) => {
+              const x = scaleX(
+                new Date(`${d.date}T00:00:00`).getTime(),
+                minX,
+                maxX,
+                width
+              );
+              const text = isQuarterly ? quarterLabel(d.date) : monthLabel(d.date);
+              return (
+                <text
+                  key={`${d.date}-${i}`}
+                  x={x}
+                  y={height + 20}
+                  textAnchor={i === 0 ? "start" : i === arr.length - 1 ? "end" : "middle"}
+                  fontSize="11"
+                  fill={COLORS.muted}
+                >
+                  {text}
+                </text>
+              );
+            })}
+        </g>
+      </svg>
     </div>
   );
 }
 
-function MetricBlock({
-  label,
-  value,
-  delta,
-  deltaPositiveBad,
-}: {
-  label: string;
-  value: string;
-  delta: string;
-  deltaPositiveBad: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-sm text-slate-300">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-white md:text-4xl">
-        {value}
-      </p>
-      <p className={`mt-2 text-lg ${valueColor(delta, deltaPositiveBad)}`}>
-        {delta}
-      </p>
-    </div>
-  );
-}
-
-function LegendItem({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2 text-sm text-slate-300">
-      <span
-        className="inline-block h-2 w-2 rounded-full"
-        style={{ backgroundColor: color }}
-      />
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function IndicatorPanel({
-  id,
-  sectionLabel,
+function MetricPanel({
+  section,
   title,
+  latestLabel,
   latest,
   deltaLabel,
   delta,
-  deltaPositiveBad,
   signal,
   signalColor,
-  chart,
-  note,
-}: {
-  id: string;
-  sectionLabel: string;
-  title: string;
-  latest: string;
-  deltaLabel: string;
-  delta: string;
-  deltaPositiveBad: boolean;
-  signal: string;
-  signalColor: string;
-  chart: React.ReactNode;
-  note: string;
-}) {
+  data,
+  lineColor,
+  commentary,
+  isQuarterly = false,
+}: MetricCard & { isQuarterly?: boolean }) {
   return (
-    <Panel>
-      <div id={id}>
-        <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-          {sectionLabel}
+    <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
+      <p className="text-xs uppercase tracking-[0.28em] text-slate-400">{section}</p>
+      <h3 className="mt-4 text-5xl font-semibold tracking-tight text-slate-50">
+        {title}
+      </h3>
+
+      <div className="mt-8 h-px w-full bg-slate-800" />
+
+      <div className="mt-7 grid gap-4 md:grid-cols-3">
+        <div>
+          <p className="text-sm text-slate-400">Latest</p>
+          <p className="mt-2 text-5xl font-semibold text-slate-50">
+            {formatValue(latest)}
+          </p>
+          <p className="mt-2 text-sm text-slate-500">{latestLabel}</p>
+        </div>
+
+        <div>
+          <p className="text-sm text-slate-400">Δ {deltaLabel}</p>
+          <p
+            className="mt-2 text-3xl font-semibold"
+            style={{
+              color:
+                delta === null
+                  ? COLORS.muted
+                  : delta > 0
+                  ? COLORS.red
+                  : delta < 0
+                  ? COLORS.green
+                  : COLORS.text,
+            }}
+          >
+            {formatDelta(delta)}
+          </p>
+        </div>
+
+        <div className="md:text-right">
+          <p className="text-sm text-slate-400">Signal</p>
+          <p className="mt-2 text-3xl font-semibold" style={{ color: signalColor }}>
+            {signal}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950/80 p-5">
+        <MiniLineChart data={data} color={lineColor} isQuarterly={isQuarterly} />
+      </div>
+
+      <p className="mt-7 text-lg leading-10 text-slate-300">{commentary}</p>
+    </section>
+  );
+}
+
+function ISMActivityChart({
+  manufacturing,
+  services,
+}: {
+  manufacturing: Observation[];
+  services: Observation[];
+}) {
+  const width = 920;
+  const height = 320;
+
+  const validManufacturing = filterValid(manufacturing);
+  const validServices = filterValid(services);
+
+  const allDates = [...validManufacturing, ...validServices].map((d) =>
+    new Date(`${d.date}T00:00:00`).getTime()
+  );
+  const allValues = [...validManufacturing, ...validServices].map((d) => d.value);
+
+  if (allDates.length === 0 || allValues.length === 0) {
+    return (
+      <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
+        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+          Business Activity Monitor
         </p>
-        <h3 className="mt-4 text-2xl font-semibold tracking-tight text-white md:text-4xl">
-          {title}
-        </h3>
+        <h2 className="mt-3 text-3xl font-semibold text-slate-50">
+          ISM Services vs Manufacturing
+        </h2>
+        <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950/70 p-8 text-sm text-slate-400">
+          ISM activity data temporarily unavailable.
+        </div>
+      </section>
+    );
+  }
 
-        <div className="mt-6 grid items-start gap-6 border-t border-slate-800 pt-6 md:grid-cols-3">
+  const minX = Math.min(...allDates);
+  const maxX = Math.max(...allDates);
+
+  const rawMin = Math.min(...allValues, 48);
+  const rawMax = Math.max(...allValues, 52);
+  const minY = Math.floor(rawMin - 2);
+  const maxY = Math.ceil(rawMax + 2);
+
+  const tickValues = yTicks(minY, maxY, 5);
+  const thresholdY = scaleY(50, minY, maxY, height);
+
+  const xLabels = Array.from({ length: 7 }, (_, i) => {
+    const t = minX + ((maxX - minX) / 6) * i;
+    const d = new Date(t);
+    return `${d.toLocaleDateString("en-US", { month: "short" })} ${String(
+      d.getFullYear()
+    ).slice(-2)}`;
+  });
+
+  const latestMfg = validManufacturing[validManufacturing.length - 1]?.value ?? null;
+  const latestSrv = validServices[validServices.length - 1]?.value ?? null;
+
+  return (
+    <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+            Business Activity Monitor
+          </p>
+          <h2 className="mt-3 text-4xl font-semibold tracking-tight text-slate-50">
+            ISM Services vs Manufacturing
+          </h2>
+          <p className="mt-5 max-w-4xl text-lg leading-9 text-slate-300">
+            Diffusion indices tracking U.S. business activity. Readings above 50
+            indicate expansion; readings below 50 indicate contraction.
+          </p>
+        </div>
+
+        <div className="text-right text-lg text-slate-300">
+          <p className="text-sm text-slate-400">Threshold</p>
+          <p className="mt-1 font-semibold text-slate-100">50.0</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-5">
+        <div className="overflow-x-auto">
+          <svg
+            viewBox={`0 0 ${width + 90} ${height + 60}`}
+            className="h-auto w-full min-w-[900px]"
+            role="img"
+            aria-label="ISM services and manufacturing chart"
+          >
+            <g transform="translate(60,20)">
+              {tickValues.map((tick, i) => {
+                const y = scaleY(tick, minY, maxY, height);
+                return (
+                  <g key={`yt-${i}`}>
+                    <line
+                      x1={0}
+                      y1={y}
+                      x2={width}
+                      y2={y}
+                      stroke="rgba(148,163,184,0.14)"
+                      strokeDasharray="4 4"
+                    />
+                    <text
+                      x={-10}
+                      y={y + 4}
+                      textAnchor="end"
+                      fontSize="12"
+                      fill={COLORS.muted}
+                    >
+                      {tick.toFixed(0)}
+                    </text>
+                  </g>
+                );
+              })}
+
+              <line
+                x1={0}
+                y1={thresholdY}
+                x2={width}
+                y2={thresholdY}
+                stroke="rgba(250,204,21,0.9)"
+                strokeWidth={2}
+                strokeDasharray="8 6"
+              />
+
+              <rect
+                x={0}
+                y={0}
+                width={width}
+                height={height}
+                fill="none"
+                stroke="rgba(148,163,184,0.18)"
+              />
+
+              <path
+                d={linePath(
+                  validManufacturing,
+                  width,
+                  height,
+                  minX,
+                  maxX,
+                  minY,
+                  maxY
+                )}
+                fill="none"
+                stroke={COLORS.orange}
+                strokeWidth={3}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+
+              <path
+                d={linePath(
+                  validServices,
+                  width,
+                  height,
+                  minX,
+                  maxX,
+                  minY,
+                  maxY
+                )}
+                fill="none"
+                stroke={COLORS.green}
+                strokeWidth={3}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+
+              {validManufacturing.length > 0 &&
+                (() => {
+                  const last = validManufacturing[validManufacturing.length - 1];
+                  const x = scaleX(
+                    new Date(`${last.date}T00:00:00`).getTime(),
+                    minX,
+                    maxX,
+                    width
+                  );
+                  const y = scaleY(last.value, minY, maxY, height);
+
+                  return (
+                    <>
+                      <circle cx={x} cy={y} r={4} fill={COLORS.orange} />
+                      <text x={x + 8} y={y - 8} fontSize="12" fill={COLORS.orange}>
+                        Manufacturing {last.value.toFixed(1)}
+                      </text>
+                    </>
+                  );
+                })()}
+
+              {validServices.length > 0 &&
+                (() => {
+                  const last = validServices[validServices.length - 1];
+                  const x = scaleX(
+                    new Date(`${last.date}T00:00:00`).getTime(),
+                    minX,
+                    maxX,
+                    width
+                  );
+                  const y = scaleY(last.value, minY, maxY, height);
+
+                  return (
+                    <>
+                      <circle cx={x} cy={y} r={4} fill={COLORS.green} />
+                      <text x={x + 8} y={y + 16} fontSize="12" fill={COLORS.green}>
+                        Services {last.value.toFixed(1)}
+                      </text>
+                    </>
+                  );
+                })()}
+
+              {xLabels.map((label, i) => {
+                const x = (width / 6) * i;
+                return (
+                  <text
+                    key={`xt-${i}`}
+                    x={x}
+                    y={height + 24}
+                    textAnchor={i === 0 ? "start" : i === 6 ? "end" : "middle"}
+                    fontSize="12"
+                    fill={COLORS.muted}
+                  >
+                    {label}
+                  </text>
+                );
+              })}
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-3">
+        <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
+            Manufacturing PMI
+          </p>
+          <p className="mt-2 text-3xl font-semibold text-slate-50">
+            {latestMfg === null ? "--" : latestMfg.toFixed(1)}
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
+            Services PMI
+          </p>
+          <p className="mt-2 text-3xl font-semibold text-slate-50">
+            {latestSrv === null ? "--" : latestSrv.toFixed(1)}
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
+            Activity Read
+          </p>
+          <p className="mt-2 text-xl font-semibold text-slate-200">
+            {latestMfg !== null && latestSrv !== null
+              ? latestMfg >= 50 && latestSrv >= 50
+                ? "Broad Expansion"
+                : latestMfg < 50 && latestSrv < 50
+                ? "Broad Contraction Risk"
+                : "Split Activity Signal"
+              : "Unavailable"}
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default async function EconomicAnalysisPage() {
+  let unemploymentData: Observation[] = [];
+  let inflationData: Observation[] = [];
+  let fedFundsData: Observation[] = [];
+  let gdpGrowthData: Observation[] = [];
+  let ismManufacturingData: Observation[] = [];
+  let ismServicesData: Observation[] = [];
+  let fetchError: string | null = null;
+
+  try {
+    const [
+      unemploymentRaw,
+      inflationRaw,
+      fedFundsRaw,
+      gdpGrowthRaw,
+      ismManufacturingRaw,
+      ismServicesRaw,
+    ] = await Promise.all([
+      fetchFredSeries(SERIES.unemployment, "2023-01-01"),
+      fetchFredSeries(SERIES.inflation, "2023-01-01"),
+      fetchFredSeries(SERIES.fedFunds, "2023-01-01"),
+      fetchFredSeries(SERIES.gdpGrowth, "2021-01-01"),
+      fetchFredSeries(SERIES.ismManufacturing, "2023-01-01"),
+      fetchFredSeries(SERIES.ismServices, "2023-01-01"),
+    ]);
+
+    unemploymentData = unemploymentRaw.filter((d) => d.value !== null);
+
+    inflationData = inflationRaw
+      .map((d, i, arr) => {
+        if (i < 12 || d.value === null || arr[i - 12]?.value === null) {
+          return { date: d.date, value: null };
+        }
+        const prevYear = arr[i - 12]?.value as number;
+        const yoy = ((d.value / prevYear) - 1) * 100;
+        return { date: d.date, value: yoy };
+      })
+      .filter((d) => d.value !== null);
+
+    fedFundsData = fedFundsRaw.filter((d) => d.value !== null);
+    gdpGrowthData = gdpGrowthRaw.filter((d) => d.value !== null);
+    ismManufacturingData = ismManufacturingRaw.filter((d) => d.value !== null);
+    ismServicesData = ismServicesRaw.filter((d) => d.value !== null);
+  } catch (error) {
+    fetchError =
+      error instanceof Error ? error.message : "Macro data request failed.";
+  }
+
+  const unemploymentLatest = lastValid(unemploymentData);
+  const inflationLatest = lastValid(inflationData);
+  const fedFundsLatest = lastValid(fedFundsData);
+  const gdpGrowthLatest = lastValid(gdpGrowthData);
+
+  const unemploymentDelta = latestDelta(unemploymentData);
+  const inflationDelta = latestDelta(inflationData);
+  const fedFundsDelta = latestDelta(fedFundsData);
+  const gdpGrowthDelta = latestDelta(gdpGrowthData);
+
+  const regime = classifyRegime({
+    inflation: inflationLatest,
+    inflationDelta,
+    unemployment: unemploymentLatest,
+    unemploymentDelta,
+    gdpGrowth: gdpGrowthLatest,
+  });
+
+  const assessment = macroAssessment({
+    inflation: inflationLatest,
+    inflationDelta,
+    unemployment: unemploymentLatest,
+    unemploymentDelta,
+    fedFunds: fedFundsLatest,
+    gdpGrowth: gdpGrowthLatest,
+    gdpGrowthDelta,
+    regime: regime.label,
+  });
+
+  const houseView = marketImplications({
+    regime: regime.label,
+    inflationDelta,
+    gdpGrowth: gdpGrowthLatest,
+    fedFunds: fedFundsLatest,
+    unemploymentDelta,
+  });
+
+  const unemploymentSignal = getSignal(
+    "unemployment",
+    unemploymentLatest,
+    unemploymentDelta
+  );
+  const inflationSignal = getSignal("inflation", inflationLatest, inflationDelta);
+  const fedFundsSignal = getSignal("fedFunds", fedFundsLatest, fedFundsDelta);
+  const gdpSignal = getSignal("gdpGrowth", gdpGrowthLatest, gdpGrowthDelta);
+
+  const unemploymentLatestDate =
+    unemploymentData[unemploymentData.length - 1]?.date ?? "";
+  const inflationLatestDate = inflationData[inflationData.length - 1]?.date ?? "";
+  const fedFundsLatestDate = fedFundsData[fedFundsData.length - 1]?.date ?? "";
+  const gdpLatestDate = gdpGrowthData[gdpGrowthData.length - 1]?.date ?? "";
+
+  const unemploymentCard: MetricCard = {
+    section: "Labor Market",
+    title: "U.S. Unemployment",
+    latestLabel: latestLabelForSeries(false, unemploymentLatestDate),
+    latest: unemploymentLatest,
+    deltaLabel: "MoM",
+    delta: unemploymentDelta,
+    signal: unemploymentSignal.signal,
+    signalColor: unemploymentSignal.color,
+    data: takeTail(unemploymentData, 24),
+    lineColor: COLORS.green,
+    commentary:
+      "Labor conditions remain contained, though recent firming in unemployment warrants monitoring.",
+  };
+
+  const inflationCard: MetricCard = {
+    section: "Prices",
+    title: "U.S. Inflation",
+    latestLabel: latestLabelForSeries(false, inflationLatestDate),
+    latest: inflationLatest,
+    deltaLabel: "MoM",
+    delta: inflationDelta,
+    signal: inflationSignal.signal,
+    signalColor: inflationSignal.color,
+    data: takeTail(inflationData, 24),
+    lineColor: COLORS.orange,
+    commentary:
+      "Disinflation remains in place, although price pressures have not been fully eliminated.",
+  };
+
+  const fedFundsCard: MetricCard = {
+    section: "Monetary Policy",
+    title: "Fed Funds Rate",
+    latestLabel: latestLabelForSeries(false, fedFundsLatestDate),
+    latest: fedFundsLatest,
+    deltaLabel: "MoM",
+    delta: fedFundsDelta,
+    signal: fedFundsSignal.signal,
+    signalColor: fedFundsSignal.color,
+    data: takeTail(fedFundsData, 24),
+    lineColor: COLORS.blue,
+    commentary:
+      "Policy remains restrictive in level terms, even as the recent direction appears less hawkish than before.",
+  };
+
+  const gdpCard: MetricCard = {
+    section: "Output",
+    title: "Real GDP Growth",
+    latestLabel: latestLabelForSeries(true, gdpLatestDate),
+    latest: gdpGrowthLatest,
+    deltaLabel: "QoQ",
+    delta: gdpGrowthDelta,
+    signal: gdpSignal.signal,
+    signalColor: gdpSignal.color,
+    data: takeTail(gdpGrowthData, 16),
+    lineColor: COLORS.violet,
+    commentary:
+      "Growth remains positive, but the latest output print points to weaker underlying momentum.",
+  };
+
+  const updatedAt = new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="mx-auto max-w-[1820px] px-4 py-8 sm:px-6 lg:px-8 xl:px-10">
+        <div className="mb-8 grid gap-6 border-b border-slate-800 pb-10 xl:grid-cols-[1.25fr_1fr]">
           <div>
-            <p className="text-sm text-slate-400">Latest</p>
-            <p className="mt-2 text-2xl font-semibold text-white md:text-4xl">
-              {latest}
+            <p className="text-xs uppercase tracking-[0.34em] text-slate-400">
+              U.S. Macro Monitor
             </p>
+
+            <h1 className="mt-6 text-6xl font-semibold tracking-tight text-slate-50 md:text-7xl">
+              U.S. Macroeconomic Dashboard
+            </h1>
+
+            <p className="mt-8 max-w-4xl text-2xl leading-[1.9] text-slate-200">
+              Live tracking of inflation, labor market conditions, monetary policy,
+              and real activity using FRED time-series data.
+            </p>
+
+            <div className="mt-10 flex flex-wrap gap-4">
+              <a
+                href="#labor"
+                className="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-lg font-medium text-slate-100 transition hover:border-slate-600"
+              >
+                Labor
+              </a>
+              <a
+                href="#inflation"
+                className="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-lg font-medium text-slate-100 transition hover:border-slate-600"
+              >
+                Inflation
+              </a>
+              <a
+                href="#policy"
+                className="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-lg font-medium text-slate-100 transition hover:border-slate-600"
+              >
+                Policy
+              </a>
+              <a
+                href="#output"
+                className="rounded-xl border border-slate-800 bg-slate-900/80 px-6 py-4 text-lg font-medium text-slate-100 transition hover:border-slate-600"
+              >
+                Output
+              </a>
+            </div>
           </div>
 
-          <div>
-            <p className="text-sm text-slate-400">{deltaLabel}</p>
-            <p className={`mt-2 text-xl ${valueColor(delta, deltaPositiveBad)}`}>
-              {delta}
-            </p>
-          </div>
+          <div className="grid gap-4 self-end md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+                Current Regime
+              </p>
+              <p className="mt-4 text-3xl font-semibold" style={{ color: regime.color }}>
+                {regime.label}
+              </p>
+            </div>
 
-          <div className="md:text-right">
-            <p className="text-sm text-slate-400">Signal</p>
-            <p className="mt-2 text-xl font-medium" style={{ color: signalColor }}>
-              {signal}
-            </p>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+                Source
+              </p>
+              <p className="mt-4 text-3xl font-semibold text-slate-50">FRED</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+                Last Updated
+              </p>
+              <p className="mt-4 text-3xl font-semibold text-slate-50">{updatedAt}</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+                Coverage
+              </p>
+              <p className="mt-4 text-3xl font-semibold text-slate-50">
+                Macro Monitor
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="mt-6">{chart}</div>
+        {fetchError ? (
+          <div className="mb-8 rounded-xl border border-red-900/60 bg-red-950/40 p-5 text-red-300">
+            Data temporarily unavailable. {fetchError}
+          </div>
+        ) : null}
 
-        <p className="mt-5 text-base leading-7 text-slate-300">{note}</p>
+        <div className="grid gap-6 xl:grid-cols-[1fr_1.3fr]">
+          <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+              Regime Summary
+            </p>
+
+            <div className="mt-8">
+              <p className="text-4xl text-slate-300">Current Regime</p>
+              <h2
+                className="mt-3 text-7xl font-semibold tracking-tight"
+                style={{ color: regime.color }}
+              >
+                {regime.label}
+              </h2>
+              <p className="mt-6 max-w-3xl text-2xl leading-[1.8] text-slate-200">
+                {regime.summary}
+              </p>
+            </div>
+
+            <div className="mt-10 h-px w-full bg-slate-800" />
+
+            <div className="mt-10 grid gap-10 sm:grid-cols-2">
+              <div>
+                <p className="text-2xl text-slate-300">Inflation</p>
+                <p className="mt-3 text-6xl font-semibold text-slate-50">
+                  {formatValue(inflationLatest)}
+                </p>
+                <p
+                  className="mt-4 text-4xl"
+                  style={{
+                    color:
+                      inflationDelta === null
+                        ? COLORS.muted
+                        : inflationDelta > 0
+                        ? COLORS.red
+                        : inflationDelta < 0
+                        ? COLORS.green
+                        : COLORS.text,
+                  }}
+                >
+                  {formatDelta(inflationDelta)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-2xl text-slate-300">Unemployment</p>
+                <p className="mt-3 text-6xl font-semibold text-slate-50">
+                  {formatValue(unemploymentLatest)}
+                </p>
+                <p
+                  className="mt-4 text-4xl"
+                  style={{
+                    color:
+                      unemploymentDelta === null
+                        ? COLORS.muted
+                        : unemploymentDelta > 0
+                        ? COLORS.red
+                        : unemploymentDelta < 0
+                        ? COLORS.green
+                        : COLORS.text,
+                  }}
+                >
+                  {formatDelta(unemploymentDelta)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-2xl text-slate-300">GDP Growth</p>
+                <p className="mt-3 text-6xl font-semibold text-slate-50">
+                  {formatValue(gdpGrowthLatest)}
+                </p>
+                <p
+                  className="mt-4 text-4xl"
+                  style={{
+                    color:
+                      gdpGrowthDelta === null
+                        ? COLORS.muted
+                        : gdpGrowthDelta > 0
+                        ? COLORS.green
+                        : gdpGrowthDelta < 0
+                        ? COLORS.red
+                        : COLORS.text,
+                  }}
+                >
+                  {formatDelta(gdpGrowthDelta)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-2xl text-slate-300">Fed Funds</p>
+                <p className="mt-3 text-6xl font-semibold text-slate-50">
+                  {formatValue(fedFundsLatest, "%", 1)}
+                </p>
+                <p
+                  className="mt-4 text-4xl"
+                  style={{
+                    color:
+                      fedFundsDelta === null
+                        ? COLORS.muted
+                        : fedFundsDelta > 0
+                        ? COLORS.red
+                        : fedFundsDelta < 0
+                        ? COLORS.green
+                        : COLORS.text,
+                  }}
+                >
+                  {formatDelta(fedFundsDelta)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-12 h-px w-full bg-slate-800" />
+
+            <div className="mt-10">
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+                Macro Assessment
+              </p>
+              <p className="mt-7 text-[2rem] leading-[1.9] text-slate-100">
+                {assessment[0]}
+              </p>
+            </div>
+          </section>
+
+          <ISMActivityChart
+            manufacturing={takeTail(ismManufacturingData, 36)}
+            services={takeTail(ismServicesData, 36)}
+          />
+        </div>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-2">
+          <div id="labor">
+            <MetricPanel {...unemploymentCard} />
+          </div>
+          <div id="inflation">
+            <MetricPanel {...inflationCard} />
+          </div>
+          <div id="policy">
+            <MetricPanel {...fedFundsCard} />
+          </div>
+          <div id="output">
+            <MetricPanel {...gdpCard} isQuarterly />
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
+          <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+              Desk Interpretation
+            </p>
+            <h2 className="mt-4 text-6xl font-semibold tracking-tight text-slate-50">
+              Macro Assessment
+            </h2>
+
+            <div className="mt-10 space-y-10 text-[1.08rem] leading-[2.1] text-slate-100 md:text-[1.12rem]">
+              {assessment.map((paragraph, idx) => (
+                <p key={idx}>{paragraph}</p>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+              Market Implications
+            </p>
+            <h2 className="mt-4 text-6xl font-semibold tracking-tight text-slate-50">
+              House View
+            </h2>
+
+            <div className="mt-10 space-y-6">
+              {houseView.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-xl border border-slate-800 bg-slate-950/75 p-7"
+                >
+                  <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+                    {item.label}
+                  </p>
+                  <p className="mt-5 text-[1.08rem] leading-[2] text-slate-100">
+                    {item.text}
+                  </p>
+                </div>
+              ))}
+
+              <div className="rounded-xl border border-slate-800 bg-slate-950/75 p-7">
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+                  Navigation
+                </p>
+                <div className="mt-6 flex flex-wrap gap-4">
+                  <Link
+                    href="/"
+                    className="rounded-xl border border-slate-700 bg-slate-950/70 px-6 py-4 text-lg font-medium text-slate-200 transition hover:border-slate-500 hover:text-white"
+                  >
+                    Return Home
+                  </Link>
+                  <a
+                    href="#top"
+                    className="rounded-xl border border-slate-700 bg-slate-950/70 px-6 py-4 text-lg font-medium text-slate-200 transition hover:border-slate-500 hover:text-white"
+                  >
+                    Back to Top
+                  </a>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
-    </Panel>
+    </main>
   );
-}
-
-function MultiSeriesChart({
-  series,
-  recessionBands,
-  height = 420,
-}: {
-  series: ChartSeries[];
-  recessionBands?: Array<{ start: string; end: string }>;
-  height?: number;
-}) {
-  const width = 1100;
-  const margin = { top: 20, right: 24, bottom: 54, left: 56 };
-
-  const allPoints = series.flatMap((item) => item.points);
-  if (!allPoints.length) {
-    return (
-      <div className="flex h-[420px] items-center justify-center text-slate-500">
-        Insufficient chart data.
-      </div>
-    );
-  }
-
-  const times = allPoints.map((point) => new Date(point.date).getTime());
-  const values = allPoints.map((point) => point.value);
-
-  const xMin = Math.min(...times);
-  const xMax = Math.max(...times);
-  const yMinRaw = Math.min(...values);
-  const yMaxRaw = Math.max(...values);
-
-  const yPad = (yMaxRaw - yMinRaw) * 0.12 || 5;
-  const yMin = yMinRaw - yPad;
-  const yMax = yMaxRaw + yPad;
-
-  const innerWidth = width - margin.left - margin.right;
-  const innerHeight = height - margin.top - margin.bottom;
-
-  const xScale = (dateStr: string) => {
-    const t = new Date(dateStr).getTime();
-    if (xMax === xMin) return margin.left;
-    return margin.left + ((t - xMin) / (xMax - xMin)) * innerWidth;
-  };
-
-  const yScale = (value: number) => {
-    if (yMax === yMin) return margin.top + innerHeight / 2;
-    return margin.top + ((yMax - value) / (yMax - yMin)) * innerHeight;
-  };
-
-  const xTicks = buildTimeTicks(xMin, xMax, 8);
-  const yTicks = buildValueTicks(yMin, yMax, 5);
-
-  return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className="h-auto w-full"
-      role="img"
-      aria-label="Composite macro chart"
-    >
-      <rect
-        x="0"
-        y="0"
-        width={width}
-        height={height}
-        rx="12"
-        fill={COLORS.panelAlt}
-      />
-
-      {recessionBands?.map((band, index) => {
-        const x1 = xScale(band.start);
-        const x2 = xScale(band.end);
-        return (
-          <rect
-            key={`${band.start}-${index}`}
-            x={x1}
-            y={margin.top}
-            width={Math.max(0, x2 - x1)}
-            height={innerHeight}
-            fill="rgba(127,29,29,0.18)"
-          />
-        );
-      })}
-
-      {yTicks.map((tick) => (
-        <g key={`y-${tick}`}>
-          <line
-            x1={margin.left}
-            x2={width - margin.right}
-            y1={yScale(tick)}
-            y2={yScale(tick)}
-            stroke={COLORS.border}
-            strokeDasharray="4 4"
-          />
-          <text
-            x={margin.left - 10}
-            y={yScale(tick) + 4}
-            textAnchor="end"
-            fill={COLORS.muted}
-            fontSize="14"
-          >
-            {tick.toFixed(0)}
-          </text>
-        </g>
-      ))}
-
-      {xTicks.map((tick) => (
-        <g key={`x-${tick}`}>
-          <line
-            x1={xScale(tick)}
-            x2={xScale(tick)}
-            y1={margin.top}
-            y2={height - margin.bottom}
-            stroke={COLORS.border}
-            strokeDasharray="4 4"
-          />
-          <text
-            x={xScale(tick)}
-            y={height - 18}
-            textAnchor="middle"
-            fill={COLORS.muted}
-            fontSize="14"
-          >
-            {formatAxisDate(tick)}
-          </text>
-        </g>
-      ))}
-
-      <rect
-        x={margin.left}
-        y={margin.top}
-        width={innerWidth}
-        height={innerHeight}
-        fill="none"
-        stroke={COLORS.border}
-      />
-
-      {series.map((item) => {
-        const path = item.points
-          .map((point, index) => {
-            const x = xScale(point.date);
-            const y = yScale(point.value);
-            return `${index === 0 ? "M" : "L"} ${x} ${y}`;
-          })
-          .join(" ");
-
-        const last = item.points[item.points.length - 1];
-
-        return (
-          <g key={item.name}>
-            <path
-              d={path}
-              fill="none"
-              stroke={item.color}
-              strokeWidth="3.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {last ? (
-              <circle
-                cx={xScale(last.date)}
-                cy={yScale(last.value)}
-                r="3.8"
-                fill={item.color}
-              />
-            ) : null}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-function SingleSeriesChart({
-  points,
-  color,
-  height = 270,
-  quarterlyLabels = false,
-}: {
-  points: Point[];
-  color: string;
-  height?: number;
-  quarterlyLabels?: boolean;
-}) {
-  const width = 760;
-  const margin = { top: 16, right: 18, bottom: 42, left: 52 };
-
-  if (!points.length) {
-    return (
-      <div className="flex h-[270px] items-center justify-center rounded-xl border border-slate-800 bg-slate-950 text-slate-500">
-        Data temporarily unavailable.
-      </div>
-    );
-  }
-
-  const values = points.map((point) => point.value);
-  const times = points.map((point) => new Date(point.date).getTime());
-
-  const yMinRaw = Math.min(...values);
-  const yMaxRaw = Math.max(...values);
-  const yPad = (yMaxRaw - yMinRaw) * 0.15 || 1;
-
-  const yMin = Math.max(0, yMinRaw - yPad);
-  const yMax = yMaxRaw + yPad;
-
-  const innerWidth = width - margin.left - margin.right;
-  const innerHeight = height - margin.top - margin.bottom;
-
-  const xMin = Math.min(...times);
-  const xMax = Math.max(...times);
-
-  const xScale = (dateStr: string) => {
-    const t = new Date(dateStr).getTime();
-    if (xMax === xMin) return margin.left;
-    return margin.left + ((t - xMin) / (xMax - xMin)) * innerWidth;
-  };
-
-  const yScale = (value: number) => {
-    if (yMax === yMin) return margin.top + innerHeight / 2;
-    return margin.top + ((yMax - value) / (yMax - yMin)) * innerHeight;
-  };
-
-  const xTicks = points.filter((_, index) => index % Math.ceil(points.length / 6) === 0);
-  const yTicks = buildValueTicks(yMin, yMax, 4);
-
-  const path = points
-    .map((point, index) => {
-      const x = xScale(point.date);
-      const y = yScale(point.value);
-      return `${index === 0 ? "M" : "L"} ${x} ${y}`;
-    })
-    .join(" ");
-
-  return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className="h-auto w-full rounded-xl border border-slate-800 bg-slate-950 p-2"
-      role="img"
-      aria-label="Indicator trend chart"
-    >
-      {yTicks.map((tick) => (
-        <g key={`y-${tick}`}>
-          <line
-            x1={margin.left}
-            x2={width - margin.right}
-            y1={yScale(tick)}
-            y2={yScale(tick)}
-            stroke={COLORS.border}
-          />
-          <text
-            x={margin.left - 8}
-            y={yScale(tick) + 4}
-            textAnchor="end"
-            fill={COLORS.muted}
-            fontSize="13"
-          >
-            {tick.toFixed(1).replace(".0", "")}
-          </text>
-        </g>
-      ))}
-
-      {xTicks.map((tick) => (
-        <g key={tick.date}>
-          <line
-            x1={xScale(tick.date)}
-            x2={xScale(tick.date)}
-            y1={margin.top}
-            y2={height - margin.bottom}
-            stroke={COLORS.border}
-          />
-          <text
-            x={xScale(tick.date)}
-            y={height - 12}
-            textAnchor="middle"
-            fill={COLORS.muted}
-            fontSize="13"
-          >
-            {formatAxisDate(tick.date, quarterlyLabels)}
-          </text>
-        </g>
-      ))}
-
-      <path
-        d={path}
-        fill="none"
-        stroke={color}
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function buildTimeTicks(xMin: number, xMax: number, count: number) {
-  if (!Number.isFinite(xMin) || !Number.isFinite(xMax)) return [];
-  if (xMin === xMax) return [new Date(xMin).toISOString().slice(0, 10)];
-
-  const ticks: string[] = [];
-  for (let i = 0; i < count; i += 1) {
-    const t = xMin + ((xMax - xMin) * i) / (count - 1);
-    ticks.push(new Date(t).toISOString().slice(0, 10));
-  }
-  return ticks;
-}
-
-function buildValueTicks(min: number, max: number, count: number) {
-  if (max === min) return [min];
-  const step = (max - min) / count;
-  return Array.from({ length: count + 1 }, (_, i) => min + step * i);
 }
