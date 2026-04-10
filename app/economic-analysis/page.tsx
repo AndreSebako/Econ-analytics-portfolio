@@ -37,9 +37,8 @@ const SERIES = {
   fedFunds: "FEDFUNDS",
   gdpGrowth: "A191RL1Q225SBEA",
 
-  // ISM panel
-  ismManufacturing: "NAPM",
-  ismServices: "ISMNONMAN",
+  manufacturingOutput: "IPMAN",
+  manufacturingOrders: "AMTMNO",
 };
 
 const COLORS = {
@@ -882,8 +881,8 @@ export default async function EconomicAnalysisPage() {
     fetchFredSeries(SERIES.inflation, "2023-01-01"),
     fetchFredSeries(SERIES.fedFunds, "2023-01-01"),
     fetchFredSeries(SERIES.gdpGrowth, "2021-01-01"),
-    fetchFredSeries(SERIES.ismManufacturing, "2023-01-01"),
-    fetchFredSeries(SERIES.ismServices, "2023-01-01"),
+   fetchFredSeries(SERIES.manufacturingOutput, "2023-01-01"),
+fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
   ]);
 
   const [
