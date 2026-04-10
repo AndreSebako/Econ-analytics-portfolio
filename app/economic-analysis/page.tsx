@@ -917,9 +917,12 @@ export default async function EconomicAnalysisPage() {
             <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
               Current Regime
             </p>
-            <p className="mt-4 text-3xl font-semibold" style={{ color: regime.color }}>
-              {regime.label}
-            </p>
+            <p
+  className="mt-4 text-2xl font-semibold leading-tight break-words"
+  style={{ color: regime.color }}
+>
+  {regime.label}
+</p>
           </div>
 
           <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-6">
