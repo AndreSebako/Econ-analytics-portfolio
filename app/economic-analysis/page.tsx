@@ -36,7 +36,6 @@ const SERIES = {
   inflation: "CPIAUCSL",
   fedFunds: "FEDFUNDS",
   gdpGrowth: "A191RL1Q225SBEA",
-
   manufacturingOutput: "IPMAN",
   manufacturingOrders: "AMTMNO",
 };
@@ -73,12 +72,13 @@ async function fetchFredSeries(
   url.searchParams.set("series_id", seriesId);
   url.searchParams.set("api_key", FRED_KEY);
   url.searchParams.set("file_type", "json");
+
   if (observationStart) {
     url.searchParams.set("observation_start", observationStart);
   }
 
   const res = await fetch(url.toString(), {
-    next: { revalidate },
+    next: { revalidate: 3600 },
   });
 
   if (!res.ok) {
@@ -409,7 +409,7 @@ function linePath(
     .join(" ");
 }
 
-function yTicks(minY: number, maxY: number, n = 5) {
+function yTicks(minY: number, maxY: number, n = 4) {
   const step = (maxY - minY) / n;
   return Array.from({ length: n + 1 }, (_, i) => minY + step * i);
 }
@@ -417,10 +417,13 @@ function yTicks(minY: number, maxY: number, n = 5) {
 function niceBounds(values: number[]) {
   const min = Math.min(...values);
   const max = Math.max(...values);
+
   if (!Number.isFinite(min) || !Number.isFinite(max)) {
     return { min: 0, max: 1 };
   }
+
   if (min === max) return { min: min - 1, max: max + 1 };
+
   const pad = (max - min) * 0.12;
   return { min: min - pad, max: max + pad };
 }
@@ -440,7 +443,7 @@ function MiniLineChart({
 
   if (valid.length === 0) {
     return (
-      <div className="mt-6 rounded-lg border border-slate-800 bg-slate-950/50 px-4 py-6 text-sm text-slate-500">
+      <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950/50 px-4 py-6 text-sm text-slate-500">
         Series temporarily unavailable.
       </div>
     );
@@ -454,7 +457,7 @@ function MiniLineChart({
   const ticks = yTicks(minY, maxY, 4);
 
   return (
-    <div className="mt-6 overflow-x-auto">
+    <div className="overflow-x-auto">
       <svg
         viewBox={`0 0 ${width + 65} ${height + 45}`}
         className="h-auto w-full min-w-[520px]"
@@ -515,6 +518,7 @@ function MiniLineChart({
                 width
               );
               const text = isQuarterly ? quarterLabel(d.date) : monthLabel(d.date);
+
               return (
                 <text
                   key={`${d.date}-${i}`}
@@ -594,7 +598,7 @@ function MetricPanel({
       </div>
 
       <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950/80 p-5">
-        <MiniLineChart data={data} color={lineColor} isQuarterly={isQuarterly} />
+        <MiniLineChart data={takeTail(data, 24)} color={lineColor} isQuarterly={isQuarterly} />
       </div>
 
       <p className="mt-7 text-lg leading-10 text-slate-300">{commentary}</p>
@@ -602,265 +606,64 @@ function MetricPanel({
   );
 }
 
-function ISMActivityChart({
-  manufacturing,
-  services,
+function ManufacturingActivityPanel({
+  output,
+  orders,
 }: {
-  manufacturing: Observation[];
-  services: Observation[];
+  output: Observation[];
+  orders: Observation[];
 }) {
-  const width = 920;
-  const height = 320;
-
-  const validManufacturing = filterValid(manufacturing);
-  const validServices = filterValid(services);
-
-  const allDates = [...validManufacturing, ...validServices].map((d) =>
-    new Date(`${d.date}T00:00:00`).getTime()
-  );
-  const allValues = [...validManufacturing, ...validServices].map((d) => d.value);
-
-  if (allDates.length === 0 || allValues.length === 0) {
-    return (
-      <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
-        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-          Business Activity Monitor
-        </p>
-        <h2 className="mt-3 text-3xl font-semibold text-slate-50">
-          ISM Services vs Manufacturing
-        </h2>
-        <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950/70 p-8 text-sm text-slate-400">
-          ISM activity data temporarily unavailable.
-        </div>
-      </section>
-    );
-  }
-
-  const minX = Math.min(...allDates);
-  const maxX = Math.max(...allDates);
-
-  const rawMin = Math.min(...allValues, 48);
-  const rawMax = Math.max(...allValues, 52);
-  const minY = Math.floor(rawMin - 2);
-  const maxY = Math.ceil(rawMax + 2);
-
-  const tickValues = yTicks(minY, maxY, 5);
-  const thresholdY = scaleY(50, minY, maxY, height);
-
-  const xLabels = Array.from({ length: 7 }, (_, i) => {
-    const t = minX + ((maxX - minX) / 6) * i;
-    const d = new Date(t);
-    return `${d.toLocaleDateString("en-US", { month: "short" })} ${String(
-      d.getFullYear()
-    ).slice(-2)}`;
-  });
-
-  const latestMfg = validManufacturing[validManufacturing.length - 1]?.value ?? null;
-  const latestSrv = validServices[validServices.length - 1]?.value ?? null;
+  const latestOutput = lastValid(output);
+  const latestOrders = lastValid(orders);
 
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-            Business Activity Monitor
+      <div className="mb-6">
+        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+          Manufacturing Activity Monitor
+        </p>
+        <h2 className="mt-3 text-4xl font-semibold tracking-tight text-slate-50">
+          Industrial Production and New Orders
+        </h2>
+        <p className="mt-5 max-w-4xl text-lg leading-9 text-slate-300">
+          Raw FRED manufacturing indicators shown separately to preserve scale and
+          avoid distortion from mixed-unit comparisons.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
+            Industrial Production
           </p>
-          <h2 className="mt-3 text-4xl font-semibold tracking-tight text-slate-50">
-            ISM Services vs Manufacturing
-          </h2>
-          <p className="mt-5 max-w-4xl text-lg leading-9 text-slate-300">
-            Diffusion indices tracking U.S. business activity. Readings above 50
-            indicate expansion; readings below 50 indicate contraction.
+          <p className="mt-2 text-3xl font-semibold text-slate-50">
+            {latestOutput === null ? "--" : latestOutput.toFixed(1)}
           </p>
         </div>
 
-        <div className="text-right text-lg text-slate-300">
-          <p className="text-sm text-slate-400">Threshold</p>
-          <p className="mt-1 font-semibold text-slate-100">50.0</p>
+        <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
+            Manufacturers&apos; New Orders
+          </p>
+          <p className="mt-2 text-3xl font-semibold text-slate-50">
+            {latestOrders === null ? "--" : latestOrders.toLocaleString()}
+          </p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-5">
-        <div className="overflow-x-auto">
-          <svg
-            viewBox={`0 0 ${width + 90} ${height + 60}`}
-            className="h-auto w-full min-w-[900px]"
-            role="img"
-            aria-label="ISM services and manufacturing chart"
-          >
-            <g transform="translate(60,20)">
-              {tickValues.map((tick, i) => {
-                const y = scaleY(tick, minY, maxY, height);
-                return (
-                  <g key={`yt-${i}`}>
-                    <line
-                      x1={0}
-                      y1={y}
-                      x2={width}
-                      y2={y}
-                      stroke="rgba(148,163,184,0.14)"
-                      strokeDasharray="4 4"
-                    />
-                    <text
-                      x={-10}
-                      y={y + 4}
-                      textAnchor="end"
-                      fontSize="12"
-                      fill={COLORS.muted}
-                    >
-                      {tick.toFixed(0)}
-                    </text>
-                  </g>
-                );
-              })}
-
-              <line
-                x1={0}
-                y1={thresholdY}
-                x2={width}
-                y2={thresholdY}
-                stroke="rgba(250,204,21,0.9)"
-                strokeWidth={2}
-                strokeDasharray="8 6"
-              />
-
-              <rect
-                x={0}
-                y={0}
-                width={width}
-                height={height}
-                fill="none"
-                stroke="rgba(148,163,184,0.18)"
-              />
-
-              <path
-                d={linePath(
-                  validManufacturing,
-                  width,
-                  height,
-                  minX,
-                  maxX,
-                  minY,
-                  maxY
-                )}
-                fill="none"
-                stroke={COLORS.orange}
-                strokeWidth={3}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-
-              <path
-                d={linePath(
-                  validServices,
-                  width,
-                  height,
-                  minX,
-                  maxX,
-                  minY,
-                  maxY
-                )}
-                fill="none"
-                stroke={COLORS.green}
-                strokeWidth={3}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-
-              {validManufacturing.length > 0 &&
-                (() => {
-                  const last = validManufacturing[validManufacturing.length - 1];
-                  const x = scaleX(
-                    new Date(`${last.date}T00:00:00`).getTime(),
-                    minX,
-                    maxX,
-                    width
-                  );
-                  const y = scaleY(last.value, minY, maxY, height);
-
-                  return (
-                    <>
-                      <circle cx={x} cy={y} r={4} fill={COLORS.orange} />
-                      <text x={x + 8} y={y - 8} fontSize="12" fill={COLORS.orange}>
-                        Manufacturing {last.value.toFixed(1)}
-                      </text>
-                    </>
-                  );
-                })()}
-
-              {validServices.length > 0 &&
-                (() => {
-                  const last = validServices[validServices.length - 1];
-                  const x = scaleX(
-                    new Date(`${last.date}T00:00:00`).getTime(),
-                    minX,
-                    maxX,
-                    width
-                  );
-                  const y = scaleY(last.value, minY, maxY, height);
-
-                  return (
-                    <>
-                      <circle cx={x} cy={y} r={4} fill={COLORS.green} />
-                      <text x={x + 8} y={y + 16} fontSize="12" fill={COLORS.green}>
-                        Services {last.value.toFixed(1)}
-                      </text>
-                    </>
-                  );
-                })()}
-
-              {xLabels.map((label, i) => {
-                const x = (width / 6) * i;
-                return (
-                  <text
-                    key={`xt-${i}`}
-                    x={x}
-                    y={height + 24}
-                    textAnchor={i === 0 ? "start" : i === 6 ? "end" : "middle"}
-                    fontSize="12"
-                    fill={COLORS.muted}
-                  >
-                    {label}
-                  </text>
-                );
-              })}
-            </g>
-          </svg>
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-4 md:grid-cols-3">
-        <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
-            Manufacturing PMI
+      <div className="mt-6 space-y-6">
+        <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-5">
+          <p className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">
+            Industrial Production: Manufacturing
           </p>
-          <p className="mt-2 text-3xl font-semibold text-slate-50">
-            {latestMfg === null ? "--" : latestMfg.toFixed(1)}
-          </p>
+          <MiniLineChart data={takeTail(output, 36)} color={COLORS.orange} />
         </div>
 
-        <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
-            Services PMI
+        <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-5">
+          <p className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-400">
+            Manufacturers&apos; New Orders
           </p>
-          <p className="mt-2 text-3xl font-semibold text-slate-50">
-            {latestSrv === null ? "--" : latestSrv.toFixed(1)}
-          </p>
-        </div>
-
-        <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
-            Activity Read
-          </p>
-          <p className="mt-2 text-xl font-semibold text-slate-200">
-            {latestMfg !== null && latestSrv !== null
-              ? latestMfg >= 50 && latestSrv >= 50
-                ? "Broad Expansion"
-                : latestMfg < 50 && latestSrv < 50
-                ? "Broad Contraction Risk"
-                : "Split Activity Signal"
-              : "Unavailable"}
-          </p>
+          <MiniLineChart data={takeTail(orders, 36)} color={COLORS.green} />
         </div>
       </div>
     </section>
@@ -872,8 +675,8 @@ export default async function EconomicAnalysisPage() {
   let inflationData: Observation[] = [];
   let fedFundsData: Observation[] = [];
   let gdpGrowthData: Observation[] = [];
-  let ismManufacturingData: Observation[] = [];
-  let ismServicesData: Observation[] = [];
+  let manufacturingOutputData: Observation[] = [];
+  let manufacturingOrdersData: Observation[] = [];
   let fetchError: string | null = null;
 
   const results = await Promise.allSettled([
@@ -881,8 +684,8 @@ export default async function EconomicAnalysisPage() {
     fetchFredSeries(SERIES.inflation, "2023-01-01"),
     fetchFredSeries(SERIES.fedFunds, "2023-01-01"),
     fetchFredSeries(SERIES.gdpGrowth, "2021-01-01"),
-   fetchFredSeries(SERIES.manufacturingOutput, "2023-01-01"),
-fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
+    fetchFredSeries(SERIES.manufacturingOutput, "2023-01-01"),
+    fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
   ]);
 
   const [
@@ -890,8 +693,8 @@ fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
     inflationResult,
     fedFundsResult,
     gdpGrowthResult,
-    ismManufacturingResult,
-    ismServicesResult,
+    manufacturingOutputResult,
+    manufacturingOrdersResult,
   ] = results;
 
   if (unemploymentResult.status === "fulfilled") {
@@ -919,24 +722,27 @@ fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
     gdpGrowthData = gdpGrowthResult.value.filter((d) => d.value !== null);
   }
 
-  if (ismManufacturingResult.status === "fulfilled") {
-    ismManufacturingData = ismManufacturingResult.value.filter(
+  if (manufacturingOutputResult.status === "fulfilled") {
+    manufacturingOutputData = manufacturingOutputResult.value.filter(
       (d) => d.value !== null
     );
   }
 
-  if (ismServicesResult.status === "fulfilled") {
-    ismServicesData = ismServicesResult.value.filter((d) => d.value !== null);
+  if (manufacturingOrdersResult.status === "fulfilled") {
+    manufacturingOrdersData = manufacturingOrdersResult.value.filter(
+      (d) => d.value !== null
+    );
   }
 
   const failed: string[] = [];
-
   if (unemploymentResult.status === "rejected") failed.push("unemployment");
   if (inflationResult.status === "rejected") failed.push("inflation");
   if (fedFundsResult.status === "rejected") failed.push("fed funds");
   if (gdpGrowthResult.status === "rejected") failed.push("GDP growth");
-  if (ismManufacturingResult.status === "rejected") failed.push("ISM manufacturing");
-  if (ismServicesResult.status === "rejected") failed.push("ISM services");
+  if (manufacturingOutputResult.status === "rejected")
+    failed.push("manufacturing output");
+  if (manufacturingOrdersResult.status === "rejected")
+    failed.push("manufacturing orders");
 
   if (failed.length > 0) {
     fetchError = `Some series failed to load: ${failed.join(", ")}.`;
@@ -1003,7 +809,7 @@ fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
     delta: unemploymentDelta,
     signal: unemploymentSignal.signal,
     signalColor: unemploymentSignal.color,
-    data: takeTail(unemploymentData, 24),
+    data: unemploymentData,
     lineColor: COLORS.green,
     commentary:
       "Labor conditions remain contained, though recent firming in unemployment warrants monitoring.",
@@ -1018,7 +824,7 @@ fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
     delta: inflationDelta,
     signal: inflationSignal.signal,
     signalColor: inflationSignal.color,
-    data: takeTail(inflationData, 24),
+    data: inflationData,
     lineColor: COLORS.orange,
     commentary:
       "Disinflation remains in place, although price pressures have not been fully eliminated.",
@@ -1033,7 +839,7 @@ fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
     delta: fedFundsDelta,
     signal: fedFundsSignal.signal,
     signalColor: fedFundsSignal.color,
-    data: takeTail(fedFundsData, 24),
+    data: fedFundsData,
     lineColor: COLORS.blue,
     commentary:
       "Policy remains restrictive in level terms, even as the recent direction appears less hawkish than before.",
@@ -1048,7 +854,7 @@ fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
     delta: gdpGrowthDelta,
     signal: gdpSignal.signal,
     signalColor: gdpSignal.color,
-    data: takeTail(gdpGrowthData, 16),
+    data: gdpGrowthData,
     lineColor: COLORS.violet,
     commentary:
       "Growth remains positive, but the latest output print points to weaker underlying momentum.",
@@ -1061,7 +867,7 @@ fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
   });
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
+    <main id="top" className="min-h-screen bg-slate-950 text-slate-100">
       <div className="mx-auto max-w-[1820px] px-4 py-8 sm:px-6 lg:px-8 xl:px-10">
         <div className="mb-8 grid gap-6 border-b border-slate-800 pb-10 xl:grid-cols-[1.25fr_1fr]">
           <div>
@@ -1147,7 +953,7 @@ fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[1fr_1.3fr]">
+        <div className="grid items-start gap-6 xl:grid-cols-[1fr_1.3fr]">
           <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
             <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
               Regime Summary
@@ -1257,38 +1063,12 @@ fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
                 </p>
               </div>
             </div>
-
-            <div className="mt-12 h-px w-full bg-slate-800" />
-
-            <div className="mt-10">
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                Macro Assessment
-              </p>
-              <p className="mt-7 text-[2rem] leading-[1.9] text-slate-100">
-                {assessment[0]}
-              </p>
-            </div>
           </section>
 
-          <ISMActivityChart
-            manufacturing={takeTail(ismManufacturingData, 36)}
-            services={takeTail(ismServicesData, 36)}
+          <ManufacturingActivityPanel
+            output={manufacturingOutputData}
+            orders={manufacturingOrdersData}
           />
-        </div>
-
-        <div className="mt-6 grid gap-6 xl:grid-cols-2">
-          <div id="labor">
-            <MetricPanel {...unemploymentCard} />
-          </div>
-          <div id="inflation">
-            <MetricPanel {...inflationCard} />
-          </div>
-          <div id="policy">
-            <MetricPanel {...fedFundsCard} />
-          </div>
-          <div id="output">
-            <MetricPanel {...gdpCard} isQuarterly />
-          </div>
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
@@ -1351,6 +1131,21 @@ fetchFredSeries(SERIES.manufacturingOrders, "2023-01-01"),
               </div>
             </div>
           </section>
+        </div>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-2">
+          <div id="labor">
+            <MetricPanel {...unemploymentCard} />
+          </div>
+          <div id="inflation">
+            <MetricPanel {...inflationCard} />
+          </div>
+          <div id="policy">
+            <MetricPanel {...fedFundsCard} />
+          </div>
+          <div id="output">
+            <MetricPanel {...gdpCard} isQuarterly />
+          </div>
         </div>
       </div>
     </main>
