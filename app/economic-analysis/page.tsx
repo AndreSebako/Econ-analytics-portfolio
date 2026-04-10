@@ -39,7 +39,7 @@ const SERIES = {
 
   // ISM panel
   ismManufacturing: "NAPM",
-  ismServices: "NAPMS",
+  ismServices: "ISMNONMAN",
 };
 
 const COLORS = {
