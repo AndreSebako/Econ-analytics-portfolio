@@ -961,10 +961,10 @@ export default async function EconomicAnalysisPage() {
 
             <div className="mt-8">
               <p className="text-4xl text-slate-300">Current Regime</p>
-              <h2
-                className="mt-3 text-7xl font-semibold tracking-tight"
-                style={{ color: regime.color }}
-              >
+             <h2
+  className="mt-3 text-6xl font-semibold tracking-tight leading-[0.95]"
+  style={{ color: regime.color }}
+>
                 {regime.label}
               </h2>
               <p className="mt-6 max-w-3xl text-2xl leading-[1.8] text-slate-200">
@@ -1071,16 +1071,16 @@ export default async function EconomicAnalysisPage() {
           />
         </div>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
+        <div className="mt-6 grid items-start gap-6 xl:grid-cols-[1.35fr_0.9fr]">
           <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
             <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
               Desk Interpretation
             </p>
-            <h2 className="mt-4 text-6xl font-semibold tracking-tight text-slate-50">
+            <h2 className="mt-4 text-5xl font-semibold tracking-tight text-slate-50">
               Macro Assessment
             </h2>
 
-            <div className="mt-10 space-y-10 text-[1.08rem] leading-[2.1] text-slate-100 md:text-[1.12rem]">
+            <div className="mt-8 space-y-8 text-lg leading-9 text-slate-100">
               {assessment.map((paragraph, idx) => (
                 <p key={idx}>{paragraph}</p>
               ))}
