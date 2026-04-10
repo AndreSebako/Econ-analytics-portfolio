@@ -1071,83 +1071,117 @@ export default async function EconomicAnalysisPage() {
           />
         </div>
 
-        <div className="mt-6 grid items-start gap-6 xl:grid-cols-[1.35fr_0.9fr]">
-          <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-              Desk Interpretation
-            </p>
-            <h2 className="mt-4 text-5xl font-semibold tracking-tight text-slate-50">
-              Macro Assessment
-            </h2>
+        {/* ===== INDICATOR PANELS (MOVE UP) ===== */}
+<div className="mt-6 grid items-start gap-6 xl:grid-cols-2">
+  <div id="labor">
+    <MetricPanel {...unemploymentCard} />
+  </div>
 
-            <div className="mt-8 space-y-8 text-lg leading-9 text-slate-100">
-              {assessment.map((paragraph, idx) => (
-                <p key={idx}>{paragraph}</p>
-              ))}
-            </div>
-          </section>
+  <div id="inflation">
+    <MetricPanel {...inflationCard} />
+  </div>
 
-          <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-              Market Implications
-            </p>
-            <h2 className="mt-4 text-6xl font-semibold tracking-tight text-slate-50">
-              House View
-            </h2>
+  <div id="policy">
+    <MetricPanel {...fedFundsCard} />
+  </div>
 
-            <div className="mt-10 space-y-6">
-              {houseView.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-xl border border-slate-800 bg-slate-950/75 p-7"
-                >
-                  <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                    {item.label}
-                  </p>
-                  <p className="mt-5 text-[1.08rem] leading-[2] text-slate-100">
-                    {item.text}
-                  </p>
-                </div>
-              ))}
+  <div id="output">
+    <MetricPanel {...gdpCard} isQuarterly />
+  </div>
+</div>
 
-              <div className="rounded-xl border border-slate-800 bg-slate-950/75 p-7">
-                <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                  Navigation
-                </p>
-                <div className="mt-6 flex flex-wrap gap-4">
-                  <Link
-                    href="/"
-                    className="rounded-xl border border-slate-700 bg-slate-950/70 px-6 py-4 text-lg font-medium text-slate-200 transition hover:border-slate-500 hover:text-white"
-                  >
-                    Return Home
-                  </Link>
-                  <a
-                    href="#top"
-                    className="rounded-xl border border-slate-700 bg-slate-950/70 px-6 py-4 text-lg font-medium text-slate-200 transition hover:border-slate-500 hover:text-white"
-                  >
-                    Back to Top
-                  </a>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
+{/* ===== TEXT / INTERPRETATION (MOVE DOWN) ===== */}
+<div className="mt-6 grid items-start gap-6 xl:grid-cols-[1.35fr_0.9fr]">
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-2">
-          <div id="labor">
-            <MetricPanel {...unemploymentCard} />
-          </div>
-          <div id="inflation">
-            <MetricPanel {...inflationCard} />
-          </div>
-          <div id="policy">
-            <MetricPanel {...fedFundsCard} />
-          </div>
-          <div id="output">
-            <MetricPanel {...gdpCard} isQuarterly />
-          </div>
-        </div>
+  {/* LEFT — MACRO ASSESSMENT */}
+  <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8">
+    <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+      Desk Interpretation
+    </p>
+
+    <h2 className="mt-4 text-5xl font-semibold tracking-tight text-slate-50">
+      Macro Assessment
+    </h2>
+
+    <div className="mt-8 space-y-8 text-lg leading-9 text-slate-100">
+      <p>
+        Inflation currently prints at {inflationCard.latest}, while unemployment
+        stands at {unemploymentCard.latest}. The latest mix suggests that
+        disinflation is stalling, and labor market deterioration remains limited
+        rather than disorderly.
+      </p>
+
+      <p>
+        The federal funds rate is currently {fedFundsCard.latest}, leaving policy
+        restrictive in level terms. Real GDP growth is {gdpCard.latest}, and the
+        latest change versus the prior quarter is {gdpCard.delta}. Activity
+        remains positive, but the latest output print points to weaker underlying
+        momentum.
+      </p>
+
+      <p>
+        On balance, current conditions are most consistent with a late-cycle
+        slowdown regime. The central question from here is whether easing
+        inflation can continue without a broader deterioration in employment and
+        growth conditions.
+      </p>
+    </div>
+  </section>
+
+  {/* RIGHT — HOUSE VIEW */}
+  <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-8 space-y-6">
+
+    <h2 className="text-5xl font-semibold tracking-tight text-slate-50">
+      House View
+    </h2>
+
+    <div className="space-y-6">
+
+      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-6">
+        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+          Rates
+        </p>
+        <p className="mt-2 text-lg text-slate-100">
+          Sticky inflation or firmer growth argues for a higher-for-longer rates profile.
+        </p>
       </div>
-    </main>
-  );
-}
+
+      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-6">
+        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+          Equities
+        </p>
+        <p className="mt-2 text-lg text-slate-100">
+          Equity leadership is likely to narrow as growth momentum softens and macro visibility becomes less uniform.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-6">
+        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+          Credit
+        </p>
+        <p className="mt-2 text-lg text-slate-100">
+          Contained labor market stress remains broadly constructive for credit, though slowing growth argues for tighter issuer selection.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-6">
+        <p className="text-xs uppercase tracking-[0.28em] text-slate-400">
+          Risk Monitor
+        </p>
+        <p className="mt-2 text-lg text-slate-100">
+          The main macro risk is that slowing output broadens faster than inflation normalizes, shifting the regime from soft landing toward a more material growth downshift.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-6 flex gap-4">
+        <button className="rounded-lg border border-slate-700 px-4 py-2 hover:bg-slate-800">
+          Return Home
+        </button>
+        <button className="rounded-lg border border-slate-700 px-4 py-2 hover:bg-slate-800">
+          Back to Top
+        </button>
+      </div>
+
+    </div>
+  </section>
+</div>
